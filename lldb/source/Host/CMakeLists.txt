@@ -133,6 +133,15 @@ else()
       openbsd/Host.cpp
       openbsd/HostInfoOpenBSD.cpp
       )
+
+  elseif (CMAKE_SYSTEM_NAME MATCHES "AIX")
+    add_host_subdirectory(aix
+      aix/AbstractSocket.cpp
+      aix/Host.cpp
+      aix/HostInfoAIX.cpp
+      aix/LibcGlue.cpp
+      aix/Support.cpp
+      )
   endif()
 endif()
 
