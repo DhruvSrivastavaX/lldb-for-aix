@@ -64,6 +64,7 @@ enum ArchitectureType {
   eArchTypeMachO,
   eArchTypeELF,
   eArchTypeCOFF,
+  eArchTypeXCOFF,
   kNumArchTypes
 };
 
