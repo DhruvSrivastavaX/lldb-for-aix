@@ -1885,10 +1885,9 @@ void NativeProcessAIX::ThreadWasCreated(NativeThreadAIX &thread) {
 static llvm::Optional<WaitStatus> HandlePid(::pid_t pid) {
   Log *log = GetLog(POSIXLog::Process);
 
-  //FIXME
   int status;
   ::pid_t wait_pid = llvm::sys::RetryAfterSignal(
-      -1, ::waitpid, pid, &status, P_ALL/*__WALL | __WNOTHREAD | WNOHANG*/);
+      -1, ::waitpid, pid, &status, WNOHANG);
 
   if (wait_pid == 0)
     return llvm::None;
@@ -1944,6 +1943,14 @@ void NativeProcessAIX::SigchldHandler() {
   }
 }
 
+#define DECLARE_REGISTER_INFOS_PPC64LE_STRUCT
+#include "Plugins/Process/Utility/RegisterInfos_ppc64le.h"
+#undef DECLARE_REGISTER_INFOS_PPC64LE_STRUCT
+
+static void GetRegister(lldb::pid_t pid, long long addr, void *buf) {
+  ptrace64(PT_READ_GPR, pid, addr, 0, (int *)buf);
+}
+
 // Wrapper for ptrace to catch errors and log calls. Note that ptrace sets
 // errno on error because -1 can be a valid result (i.e. for PTRACE_PEEK*)
 Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
@@ -1957,18 +1964,55 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
   PtraceDisplayBytes(req, data, data_size);
 
   errno = 0;
-  //FIXME
-  int *buff;
-  int dummy_data;
-  if (req == PTRACE_GETREGSET || req == PTRACE_SETREGSET)
-    ret = ptrace64(static_cast<__ptrace_request>(req), static_cast<::pid_t>(pid),
-                 (long long)*(unsigned int *)addr, dummy_data, buff);
-  else
-    ret = ptrace64(static_cast<__ptrace_request>(req), static_cast<::pid_t>(pid),
-                 (long long)addr, dummy_data, buff);
 
-  if (ret == -1)
+  if (req == PTRACE_GETREGS) {
+    GetRegister(pid, GPR0, &(((GPR *)data)->r0));
+    GetRegister(pid, GPR1, &(((GPR *)data)->r1));
+    GetRegister(pid, GPR2, &(((GPR *)data)->r2));
+    GetRegister(pid, GPR3, &(((GPR *)data)->r3));
+    GetRegister(pid, GPR4, &(((GPR *)data)->r4));
+    GetRegister(pid, GPR5, &(((GPR *)data)->r5));
+    GetRegister(pid, GPR6, &(((GPR *)data)->r6));
+    GetRegister(pid, GPR7, &(((GPR *)data)->r7));
+    GetRegister(pid, GPR8, &(((GPR *)data)->r8));
+    GetRegister(pid, GPR9, &(((GPR *)data)->r9));
+    GetRegister(pid, GPR10, &(((GPR *)data)->r10));
+    GetRegister(pid, GPR11, &(((GPR *)data)->r11));
+    GetRegister(pid, GPR12, &(((GPR *)data)->r12));
+    GetRegister(pid, GPR13, &(((GPR *)data)->r13));
+    GetRegister(pid, GPR14, &(((GPR *)data)->r14));
+    GetRegister(pid, GPR15, &(((GPR *)data)->r15));
+    GetRegister(pid, GPR16, &(((GPR *)data)->r16));
+    GetRegister(pid, GPR17, &(((GPR *)data)->r17));
+    GetRegister(pid, GPR18, &(((GPR *)data)->r18));
+    GetRegister(pid, GPR19, &(((GPR *)data)->r19));
+    GetRegister(pid, GPR20, &(((GPR *)data)->r20));
+    GetRegister(pid, GPR21, &(((GPR *)data)->r21));
+    GetRegister(pid, GPR22, &(((GPR *)data)->r22));
+    GetRegister(pid, GPR23, &(((GPR *)data)->r23));
+    GetRegister(pid, GPR24, &(((GPR *)data)->r24));
+    GetRegister(pid, GPR25, &(((GPR *)data)->r25));
+    GetRegister(pid, GPR26, &(((GPR *)data)->r26));
+    GetRegister(pid, GPR27, &(((GPR *)data)->r27));
+    GetRegister(pid, GPR28, &(((GPR *)data)->r28));
+    GetRegister(pid, GPR29, &(((GPR *)data)->r29));
+    GetRegister(pid, GPR30, &(((GPR *)data)->r30));
+    GetRegister(pid, GPR31, &(((GPR *)data)->r31));
+    GetRegister(pid, IAR, &(((GPR *)data)->pc));
+    GetRegister(pid, MSR, &(((GPR *)data)->msr));
+    //FIXME: origr3/softe/trap on AIX?
+    GetRegister(pid, CTR, &(((GPR *)data)->ctr));
+    GetRegister(pid, LR, &(((GPR *)data)->lr));
+    GetRegister(pid, XER, &(((GPR *)data)->xer));
+    GetRegister(pid, CR, &(((GPR *)data)->cr));
+  } else {
+    assert(0 && "Not supported yet.");
+  }
+
+  if (errno) {
     error.SetErrorToErrno();
+    ret = -1;
+  }
 
   if (result)
     *result = ret;

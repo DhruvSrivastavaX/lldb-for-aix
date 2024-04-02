@@ -129,7 +129,7 @@ NativeRegisterContextAIX_ppc64::NativeRegisterContextAIX_ppc64(
     : NativeRegisterContextRegisterInfo(
           native_thread, new RegisterInfoPOSIX_ppc64le(target_arch)),
       NativeRegisterContextAIX(native_thread) {
-  if (target_arch.GetMachine() != llvm::Triple::ppc64le) {
+  if (target_arch.GetMachine() != llvm::Triple::ppc64) {
     llvm_unreachable("Unhandled target architecture.");
   }
 

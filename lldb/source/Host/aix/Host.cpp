@@ -31,7 +31,12 @@
 #include "lldb/Host/aix/Host.h"
 #include "lldb/Host/aix/Support.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "llvm/BinaryFormat/XCOFF.h"
 
+#include <sstream>
+#include <sys/procfs.h>
+
+using namespace llvm;
 using namespace lldb;
 using namespace lldb_private;
 
@@ -126,30 +131,6 @@ static bool IsDirNumeric(const char *dname) {
   return true;
 }
 
-static ArchSpec GetELFProcessCPUType(llvm::StringRef exe_path) {
-  Log *log = GetLog(LLDBLog::Host);
-
-  auto buffer_sp = FileSystem::Instance().CreateDataBuffer(exe_path, 0x20, 0);
-  if (!buffer_sp)
-    return ArchSpec();
-
-  uint8_t exe_class =
-      llvm::object::getElfArchType(
-          {reinterpret_cast<const char *>(buffer_sp->GetBytes()),
-           size_t(buffer_sp->GetByteSize())})
-          .first;
-
-  switch (exe_class) {
-  case llvm::ELF::ELFCLASS32:
-    return HostInfo::GetArchitecture(HostInfo::eArchKind32);
-  case llvm::ELF::ELFCLASS64:
-    return HostInfo::GetArchitecture(HostInfo::eArchKind64);
-  default:
-    LLDB_LOG(log, "Unknown elf class ({0}) in file {1}", exe_class, exe_path);
-    return ArchSpec();
-  }
-}
-
 static void GetProcessArgs(::pid_t pid, ProcessInstanceInfo &process_info) {
   auto BufferOrError = getProcFile(pid, "cmdline");
   if (!BufferOrError)
@@ -169,27 +150,45 @@ static void GetProcessArgs(::pid_t pid, ProcessInstanceInfo &process_info) {
 static void GetExePathAndArch(::pid_t pid, ProcessInstanceInfo &process_info) {
   Log *log = GetLog(LLDBLog::Process);
   std::string ExePath(PATH_MAX, '\0');
+  std::string Basename(PATH_MAX, '\0');
+  struct psinfo psinfoData;
 
   // We can't use getProcFile here because proc/[pid]/exe is a symbolic link.
   llvm::SmallString<64> ProcExe;
-  (llvm::Twine("/proc/") + llvm::Twine(pid) + "/exe").toVector(ProcExe);
+  (llvm::Twine("/proc/") + llvm::Twine(pid) + "/cwd").toVector(ProcExe);
 
   ssize_t len = readlink(ProcExe.c_str(), &ExePath[0], PATH_MAX);
   if (len > 0) {
     ExePath.resize(len);
+
+    //FIXME: hack to get basename
+    struct stat statData;
+
+    std::ostringstream oss;
+
+    oss << "/proc/" << std::dec << pid << "/psinfo";
+    assert(stat(oss.str().c_str(), &statData) == 0);
+
+    const int fd = open(oss.str().c_str(), O_RDONLY);
+    assert (fd >= 0);
+
+    ssize_t readNum = read(fd, &psinfoData, sizeof(psinfoData));
+    assert (readNum >= 0);
+
+    close (fd);
   } else {
     LLDB_LOG(log, "failed to read link exe link for {0}: {1}", pid,
              Status(errno, eErrorTypePOSIX));
     ExePath.resize(0);
   }
-  // If the binary has been deleted, the link name has " (deleted)" appended.
-  // Remove if there.
-  llvm::StringRef PathRef = ExePath;
-  PathRef.consume_back(" (deleted)");
+
+  llvm::StringRef PathRef = std::string(&(psinfoData.pr_psargs[0]));
 
   if (!PathRef.empty()) {
     process_info.GetExecutableFile().SetFile(PathRef, FileSpec::Style::native);
-    process_info.SetArchitecture(GetELFProcessCPUType(PathRef));
+    ArchSpec arch_spec = ArchSpec();
+    arch_spec.SetArchitecture(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE, llvm::Triple::AIX);
+    process_info.SetArchitecture(arch_spec);
   }
 }
 
