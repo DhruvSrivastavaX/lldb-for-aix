@@ -17,16 +17,16 @@
 
 // Support ptrace extensions even when compiled without required kernel support
 #ifndef PTRACE_GETREGS
-#define PTRACE_GETREGS 12
+#define PTRACE_GETREGS          (PT_COMMAND_MAX+1)
 #endif
 #ifndef PTRACE_SETREGS
-#define PTRACE_SETREGS 13
+#define PTRACE_SETREGS          (PT_COMMAND_MAX+2)
 #endif
 #ifndef PTRACE_GETFPREGS
-#define PTRACE_GETFPREGS 14
+#define PTRACE_GETFPREGS        (PT_COMMAND_MAX+3)
 #endif
 #ifndef PTRACE_SETFPREGS
-#define PTRACE_SETFPREGS 15
+#define PTRACE_SETFPREGS        (PT_COMMAND_MAX+4)
 #endif
 #ifndef PTRACE_GETREGSET
 #define PTRACE_GETREGSET 0x4204
@@ -35,10 +35,10 @@
 #define PTRACE_SETREGSET 0x4205
 #endif
 #ifndef PTRACE_GET_THREAD_AREA
-#define PTRACE_GET_THREAD_AREA 25
+#define PTRACE_GET_THREAD_AREA  (PT_COMMAND_MAX+5)
 #endif
 #ifndef PTRACE_ARCH_PRCTL
-#define PTRACE_ARCH_PRCTL 30
+#define PTRACE_ARCH_PRCTL       (PT_COMMAND_MAX+6)
 #endif
 #ifndef ARCH_GET_FS
 #define ARCH_SET_GS 0x1001
@@ -47,10 +47,10 @@
 #define ARCH_GET_GS 0x1004
 #endif
 #ifndef PTRACE_PEEKMTETAGS
-#define PTRACE_PEEKMTETAGS 33
+#define PTRACE_PEEKMTETAGS      (PT_COMMAND_MAX+7)
 #endif
 #ifndef PTRACE_POKEMTETAGS
-#define PTRACE_POKEMTETAGS 34
+#define PTRACE_POKEMTETAGS      (PT_COMMAND_MAX+8)
 #endif
 
 #define LLDB_PTRACE_NT_ARM_TLS 0x401 // ARM TLS register

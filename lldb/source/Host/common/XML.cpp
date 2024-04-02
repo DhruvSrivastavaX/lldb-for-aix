@@ -10,6 +10,7 @@
 #include "lldb/Host/XML.h"
 
 #include "llvm/ADT/StringExtras.h"
+#undef LLDB_ENABLE_LIBXML2
 
 using namespace lldb;
 using namespace lldb_private;

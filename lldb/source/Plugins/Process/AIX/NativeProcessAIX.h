@@ -109,7 +109,8 @@ public:
 
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
   GetAuxvData() const override {
-    return getProcFile(GetID(), "auxv");
+    // Not available on this target.
+    return llvm::errc::not_supported;
   }
 
   /// Tracing

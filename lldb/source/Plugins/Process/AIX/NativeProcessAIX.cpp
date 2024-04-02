@@ -2005,6 +2005,13 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     GetRegister(pid, LR, &(((GPR *)data)->lr));
     GetRegister(pid, XER, &(((GPR *)data)->xer));
     GetRegister(pid, CR, &(((GPR *)data)->cr));
+  } else if (req < PT_COMMAND_MAX) {
+    if (req == PT_CONTINUE) {
+      int buf;
+      ptrace64(req, pid, 1, 0, &buf);
+    } else {
+      assert(0 && "Not supported yet.");
+    }
   } else {
     assert(0 && "Not supported yet.");
   }
