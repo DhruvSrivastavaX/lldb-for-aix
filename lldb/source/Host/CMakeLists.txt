@@ -139,7 +139,6 @@ else()
       aix/AbstractSocket.cpp
       aix/Host.cpp
       aix/HostInfoAIX.cpp
-      aix/LibcGlue.cpp
       aix/Support.cpp
       )
   endif()

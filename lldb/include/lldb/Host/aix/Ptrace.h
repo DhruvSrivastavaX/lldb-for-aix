@@ -13,10 +13,6 @@
 
 #include <sys/ptrace.h>
 
-#ifndef __GLIBC__
-typedef int __ptrace_request;
-#endif
-
 #define DEBUG_PTRACE_MAXBYTES 20
 
 // Support ptrace extensions even when compiled without required kernel support
