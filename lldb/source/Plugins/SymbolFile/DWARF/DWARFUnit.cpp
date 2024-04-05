@@ -760,9 +760,7 @@ void DWARFUnit::ParseProducerInfo() {
   static const RegularExpression g_clang_version_regex(
       llvm::StringRef(R"(clang-([0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?))"));
   static const RegularExpression g_llvm_gcc_regex(
-      llvm::StringRef(R"(4\.[012]\.[01] )"
-                      R"(\(Based on Apple Inc\. build [0-9]+\) )"
-                      R"(\(LLVM build [\.0-9]+\)$)"));
+      llvm::StringRef(R"(4\.[012]\.[01] )"));
 
   llvm::SmallVector<llvm::StringRef, 3> matches;
   if (g_swiftlang_version_regex.Execute(producer, &matches)) {
@@ -1085,7 +1083,7 @@ uint32_t DWARFUnit::GetHeaderByteSize() const {
 
 std::optional<uint64_t>
 DWARFUnit::GetStringOffsetSectionItem(uint32_t index) const {
-  offset_t offset = GetStrOffsetsBase() + index * 4;
+  lldb::offset_t offset = GetStrOffsetsBase() + index * 4;
   return m_dwarf.GetDWARFContext().getOrLoadStrOffsetsData().GetU32(&offset);
 }
 

@@ -139,7 +139,7 @@ public:
 
   /// Writes a siginfo_t structure corresponding to the given thread ID to the
   /// memory region pointed to by \p siginfo.
-  Status GetSignalInfo(lldb::tid_t tid, void *siginfo) const;
+  int8_t GetSignalInfo(WaitStatus wstatus) const;
 
 protected:
   llvm::Expected<llvm::ArrayRef<uint8_t>>
@@ -168,13 +168,11 @@ private:
   // Returns a list of process threads that we have attached to.
   static llvm::Expected<std::vector<::pid_t>> Attach(::pid_t pid);
 
-  static Status SetDefaultPtraceOpts(const lldb::pid_t);
-
   void MonitorCallback(NativeThreadAIX &thread, WaitStatus status);
 
   void WaitForCloneNotification(::pid_t pid);
 
-  void MonitorSIGTRAP(const siginfo_t &info, NativeThreadAIX &thread);
+  void MonitorSIGTRAP(const WaitStatus status, NativeThreadAIX &thread);
 
   void MonitorTrace(NativeThreadAIX &thread);
 
@@ -182,7 +180,7 @@ private:
 
   void MonitorWatchpoint(NativeThreadAIX &thread, uint32_t wp_index);
 
-  void MonitorSignal(const siginfo_t &info, NativeThreadAIX &thread);
+  void MonitorSignal(const WaitStatus status, NativeThreadAIX &thread);
 
   bool HasThreadNoLock(lldb::tid_t thread_id);
 

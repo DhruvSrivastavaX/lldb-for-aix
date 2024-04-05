@@ -263,12 +263,6 @@ NativeProcessAIX::Factory::Launch(ProcessLaunchInfo &launch_info,
   LLDB_LOG(log, "pid = {0:x}, detected architecture {1}", pid,
            Info.GetArchitecture().GetArchitectureName());
 
-  status = SetDefaultPtraceOpts(pid);
-  if (status.Fail()) {
-    LLDB_LOG(log, "failed to set default ptrace options: {0}", status);
-    return status.ToError();
-  }
-
   return std::unique_ptr<NativeProcessAIX>(new NativeProcessAIX(
       pid, launch_info.GetPTY().ReleasePrimaryFileDescriptor(), native_delegate,
       Info.GetArchitecture(), mainloop, {pid}));
@@ -389,9 +383,6 @@ llvm::Expected<std::vector<::pid_t>> NativeProcessAIX::Attach(::pid_t pid) {
               std::error_code(errno, std::generic_category()));
         }
 
-        if ((status = SetDefaultPtraceOpts(tid)).Fail())
-          return status.ToError();
-
         LLDB_LOG(log, "adding tid = {0}", tid);
         it->second = true;
       }
@@ -411,36 +402,6 @@ llvm::Expected<std::vector<::pid_t>> NativeProcessAIX::Attach(::pid_t pid) {
   for (const auto &p : tids_to_attach)
     tids.push_back(p.first);
   return std::move(tids);
-}
-
-Status NativeProcessAIX::SetDefaultPtraceOpts(lldb::pid_t pid) {
-  long ptrace_opts = 0;
-
-#if 0
-  // Have the child raise an event on exit.  This is used to keep the child in
-  // limbo until it is destroyed.
-  ptrace_opts |= PTRACE_O_TRACEEXIT;
-
-  // Have the tracer trace threads which spawn in the inferior process.
-  ptrace_opts |= PTRACE_O_TRACECLONE;
-
-  // Have the tracer notify us before execve returns (needed to disable legacy
-  // SIGTRAP generation)
-  ptrace_opts |= PTRACE_O_TRACEEXEC;
-
-  // Have the tracer trace forked children.
-  ptrace_opts |= PTRACE_O_TRACEFORK;
-
-  // Have the tracer trace vforks.
-  ptrace_opts |= PTRACE_O_TRACEVFORK;
-
-  // Have the tracer trace vfork-done in order to restore breakpoints after
-  // the child finishes sharing memory.
-  ptrace_opts |= PTRACE_O_TRACEVFORKDONE;
-#endif
-
-  //FIXME
-  return PtraceWrapper(PT_SET, pid, nullptr, (void *)ptrace_opts);
 }
 
 // Handles all waitpid events from the inferior process.
@@ -467,47 +428,17 @@ void NativeProcessAIX::MonitorCallback(NativeThreadAIX &thread,
     return;
   }
 
-  siginfo_t info;
-  const auto info_err = GetSignalInfo(thread.GetID(), &info);
+  int8_t signo = GetSignalInfo(status);
 
   // Get details on the signal raised.
-  if (info_err.Success()) {
+  if (signo) {
     // We have retrieved the signal info.  Dispatch appropriately.
-    if (info.si_signo == SIGTRAP)
-      MonitorSIGTRAP(info, thread);
+    if (signo == SIGTRAP)
+      MonitorSIGTRAP(status, thread);
     else
-      MonitorSignal(info, thread);
+      MonitorSignal(status, thread);
   } else {
-    if (info_err.GetError() == EINVAL) {
-      // This is a group stop reception for this tid. We can reach here if we
-      // reinject SIGSTOP, SIGSTP, SIGTTIN or SIGTTOU into the tracee,
-      // triggering the group-stop mechanism. Normally receiving these would
-      // stop the process, pending a SIGCONT. Simulating this state in a
-      // debugger is hard and is generally not needed (one use case is
-      // debugging background task being managed by a shell). For general use,
-      // it is sufficient to stop the process in a signal-delivery stop which
-      // happens before the group stop. This done by MonitorSignal and works
-      // correctly for all signals.
-      LLDB_LOG(log,
-               "received a group stop for pid {0} tid {1}. Transparent "
-               "handling of group stops not supported, resuming the "
-               "thread.",
-               GetID(), thread.GetID());
-      ResumeThread(thread, thread.GetState(), LLDB_INVALID_SIGNAL_NUMBER);
-    } else {
-      // ptrace(GETSIGINFO) failed (but not due to group-stop).
-
-      // A return value of ESRCH means the thread/process has died in the mean
-      // time. This can (e.g.) happen when another thread does an exit_group(2)
-      // or the entire process get SIGKILLed.
-      // We can't do anything with this thread anymore, but we keep it around
-      // until we get the WIFEXITED event.
-
-      LLDB_LOG(log,
-               "GetSignalInfo({0}) failed: {1}, status = {2}, main_thread = "
-               "{3}. Expecting WIFEXITED soon.",
-               thread.GetID(), info_err, status, is_main_thread);
-    }
+    assert(0);
   }
 }
 
@@ -534,192 +465,19 @@ void NativeProcessAIX::WaitForCloneNotification(::pid_t pid) {
            pid, wait_pid, errno, WaitStatus::Decode(status));
 }
 
-void NativeProcessAIX::MonitorSIGTRAP(const siginfo_t &info,
+void NativeProcessAIX::MonitorSIGTRAP(const WaitStatus status,
                                         NativeThreadAIX &thread) {
   Log *log = GetLog(POSIXLog::Process);
   const bool is_main_thread = (thread.GetID() == GetID());
 
-  assert(info.si_signo == SIGTRAP && "Unexpected child signal!");
-
-  switch (info.si_code) {
-#if 0
-  case (SIGTRAP | (PTRACE_EVENT_FORK << 8)):
-  case (SIGTRAP | (PTRACE_EVENT_VFORK << 8)):
-  case (SIGTRAP | (PTRACE_EVENT_CLONE << 8)): {
-    // This can either mean a new thread or a new process spawned via
-    // clone(2) without SIGCHLD or CLONE_VFORK flag.  Note that clone(2)
-    // can also cause PTRACE_EVENT_FORK and PTRACE_EVENT_VFORK if one
-    // of these flags are passed.
-
-    unsigned long event_message = 0;
-    if (GetEventMessage(thread.GetID(), &event_message).Fail()) {
-      LLDB_LOG(log,
-               "pid {0} received clone() event but GetEventMessage failed "
-               "so we don't know the new pid/tid",
-               thread.GetID());
-      ResumeThread(thread, thread.GetState(), LLDB_INVALID_SIGNAL_NUMBER);
-    } else {
-      MonitorClone(thread, event_message, info.si_code >> 8);
-    }
-
-    break;
-  }
-
-  case (SIGTRAP | (PTRACE_EVENT_EXEC << 8)): {
-    LLDB_LOG(log, "received exec event, code = {0}", info.si_code ^ SIGTRAP);
-
-    // Exec clears any pending notifications.
-    m_pending_notification_tid = LLDB_INVALID_THREAD_ID;
-
-    // Remove all but the main thread here.  AIX fork creates a new process
-    // which only copies the main thread.
-    LLDB_LOG(log, "exec received, stop tracking all but main thread");
-
-    llvm::erase_if(m_threads, [&](std::unique_ptr<NativeThreadProtocol> &t) {
-      return t->GetID() != GetID();
-    });
-    assert(m_threads.size() == 1);
-    auto *main_thread = static_cast<NativeThreadAIX *>(m_threads[0].get());
-
-    SetCurrentThreadID(main_thread->GetID());
-    main_thread->SetStoppedByExec();
-
-    // Tell coordinator about about the "new" (since exec) stopped main thread.
-    ThreadWasCreated(*main_thread);
-
-    // Let our delegate know we have just exec'd.
-    NotifyDidExec();
-
-    // Let the process know we're stopped.
-    StopRunningThreads(main_thread->GetID());
-
-    break;
-  }
-
-  case (SIGTRAP | (PTRACE_EVENT_EXIT << 8)): {
-    // The inferior process or one of its threads is about to exit. We don't
-    // want to do anything with the thread so we just resume it. In case we
-    // want to implement "break on thread exit" functionality, we would need to
-    // stop here.
-
-    unsigned long data = 0;
-    if (GetEventMessage(thread.GetID(), &data).Fail())
-      data = -1;
-
-    LLDB_LOG(log,
-             "received PTRACE_EVENT_EXIT, data = {0:x}, WIFEXITED={1}, "
-             "WIFSIGNALED={2}, pid = {3}, main_thread = {4}",
-             data, WIFEXITED(data), WIFSIGNALED(data), thread.GetID(),
-             is_main_thread);
-
-
-    StateType state = thread.GetState();
-    if (!StateIsRunningState(state)) {
-      // Due to a kernel bug, we may sometimes get this stop after the inferior
-      // gets a SIGKILL. This confuses our state tracking logic in
-      // ResumeThread(), since normally, we should not be receiving any ptrace
-      // events while the inferior is stopped. This makes sure that the
-      // inferior is resumed and exits normally.
-      state = eStateRunning;
-    }
-    ResumeThread(thread, state, LLDB_INVALID_SIGNAL_NUMBER);
-
-    if (is_main_thread) {
-      // Main thread report the read (WIFEXITED) event only after all threads in
-      // the process exit, so we need to stop tracking it here instead of in
-      // MonitorCallback
-      StopTrackingThread(thread);
-    }
-
-    break;
-  }
-
-  case (SIGTRAP | (PTRACE_EVENT_VFORK_DONE << 8)): {
-    if (bool(m_enabled_extensions & Extension::vfork)) {
-      thread.SetStoppedByVForkDone();
-      StopRunningThreads(thread.GetID());
-    }
-    else
-      ResumeThread(thread, thread.GetState(), LLDB_INVALID_SIGNAL_NUMBER);
-    break;
-  }
-
-  case 0:
-  case TRAP_TRACE:  // We receive this on single stepping.
-  case TRAP_HWBKPT: // We receive this on watchpoint hit
-  {
-    // If a watchpoint was hit, report it
-    uint32_t wp_index;
-    Status error = thread.GetRegisterContext().GetWatchpointHitIndex(
-        wp_index, (uintptr_t)info.si_addr);
-    if (error.Fail())
-      LLDB_LOG(log,
-               "received error while checking for watchpoint hits, pid = "
-               "{0}, error = {1}",
-               thread.GetID(), error);
-    if (wp_index != LLDB_INVALID_INDEX32) {
-      MonitorWatchpoint(thread, wp_index);
-      break;
-    }
-
-    // If a breakpoint was hit, report it
-    uint32_t bp_index;
-    error = thread.GetRegisterContext().GetHardwareBreakHitIndex(
-        bp_index, (uintptr_t)info.si_addr);
-    if (error.Fail())
-      LLDB_LOG(log, "received error while checking for hardware "
-                    "breakpoint hits, pid = {0}, error = {1}",
-               thread.GetID(), error);
-    if (bp_index != LLDB_INVALID_INDEX32) {
-      MonitorBreakpoint(thread);
-      break;
-    }
-
-    // Otherwise, report step over
-    MonitorTrace(thread);
-    break;
-  }
-
-  case SI_KERNEL:
-#if defined __mips__
-    // For mips there is no special signal for watchpoint So we check for
-    // watchpoint in kernel trap
-    {
-      // If a watchpoint was hit, report it
-      uint32_t wp_index;
-      Status error = thread.GetRegisterContext().GetWatchpointHitIndex(
-          wp_index, LLDB_INVALID_ADDRESS);
-      if (error.Fail())
-        LLDB_LOG(log,
-                 "received error while checking for watchpoint hits, pid = "
-                 "{0}, error = {1}",
-                 thread.GetID(), error);
-      if (wp_index != LLDB_INVALID_INDEX32) {
-        MonitorWatchpoint(thread, wp_index);
-        break;
-      }
-    }
-// NO BREAK
-#endif
-  case TRAP_BRKPT:
+  switch (status.status) {
+  case SIGTRAP:
     MonitorBreakpoint(thread);
     break;
-
-  case SIGTRAP:
-  case (SIGTRAP | 0x80):
-    LLDB_LOG(
-        log,
-        "received unknown SIGTRAP stop event ({0}, pid {1} tid {2}, resuming",
-        info.si_code, GetID(), thread.GetID());
-
-    // Ignore these signals until we know more about them.
-    ResumeThread(thread, thread.GetState(), LLDB_INVALID_SIGNAL_NUMBER);
-    break;
-#endif
   default:
     LLDB_LOG(log, "received unknown SIGTRAP stop event ({0}, pid {1} tid {2}",
-             info.si_code, GetID(), thread.GetID());
-    MonitorSignal(info, thread);
+             status.status, GetID(), thread.GetID());
+    MonitorSignal(status, thread);
     break;
   }
 }
@@ -764,8 +522,9 @@ void NativeProcessAIX::MonitorWatchpoint(NativeThreadAIX &thread,
   StopRunningThreads(thread.GetID());
 }
 
-void NativeProcessAIX::MonitorSignal(const siginfo_t &info,
+void NativeProcessAIX::MonitorSignal(const WaitStatus status,
                                        NativeThreadAIX &thread) {
+#if 0
   const int signo = info.si_signo;
   const bool is_from_llgs = info.si_pid == getpid();
 
@@ -850,6 +609,7 @@ void NativeProcessAIX::MonitorSignal(const siginfo_t &info,
 
   // Send a stop to the debugger after we get all other threads to stop.
   StopRunningThreads(thread.GetID());
+#endif
 }
 
 bool NativeProcessAIX::MonitorClone(NativeThreadAIX &parent,
@@ -1590,9 +1350,8 @@ Status NativeProcessAIX::WriteMemory(lldb::addr_t addr, const void *buf,
   return error;
 }
 
-Status NativeProcessAIX::GetSignalInfo(lldb::tid_t tid, void *siginfo) const {
-  //FIXME
-  return PtraceWrapper(PT_CLEAR/*PTRACE_GETSIGINFO*/, tid, nullptr, siginfo);
+int8_t NativeProcessAIX::GetSignalInfo(WaitStatus wstatus) const {
+  return wstatus.status;
 }
 
 Status NativeProcessAIX::GetEventMessage(lldb::tid_t tid,
@@ -1703,16 +1462,14 @@ Status NativeProcessAIX::GetLoadedModuleFileSpec(const char *module_path,
 Status NativeProcessAIX::GetFileLoadAddress(const llvm::StringRef &file_name,
                                               lldb::addr_t &load_addr) {
   load_addr = LLDB_INVALID_ADDRESS;
-  Status error = PopulateMemoryRegionCache();
-  if (error.Fail())
-    return error;
 
-  FileSpec file(file_name);
-  for (const auto &it : m_mem_region_cache) {
-    if (it.second == file) {
-      load_addr = it.first.GetRange().GetRangeBase();
-      return Status();
-    }
+  NativeThreadAIX &thread = *GetCurrentThread();
+  NativeRegisterContextAIX &reg_ctx = thread.GetRegisterContext();
+
+  struct ld_info info[6];
+  if (ptrace64(PT_LDINFO, reg_ctx.GetThread().GetID(), (long long)&(info[0]), sizeof(info), nullptr) == 0) {
+    load_addr = (unsigned long)info[0].ldinfo_textorg;
+    return Status();
   }
   return Status("No load address found for specified file.");
 }

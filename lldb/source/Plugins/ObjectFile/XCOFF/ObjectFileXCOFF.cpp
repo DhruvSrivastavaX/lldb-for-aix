@@ -90,12 +90,17 @@ ObjectFile *ObjectFileXCOFF::CreateInstance(const lldb::ModuleSP &module_sp,
   }
   auto objfile_up = std::make_unique<ObjectFileXCOFF>(
       module_sp, data_sp, data_offset, file, file_offset, length);
-  if (!objfile_up || !objfile_up->ParseHeader())
+  if (!objfile_up)
     return nullptr;
 
   // Cache xcoff binary.
   if (!objfile_up->CreateBinary())
     return nullptr;
+
+  if (!objfile_up->ParseHeader())
+    //FIXME objfile leak
+    return nullptr;
+
   return objfile_up.release();
 }
 
@@ -105,8 +110,9 @@ bool ObjectFileXCOFF::CreateBinary() {
 
   Log *log = GetLog(LLDBLog::Object);
 
-  auto binary = llvm::object::createBinary(llvm::MemoryBufferRef(
-      toStringRef(m_data.GetData()), m_file.GetFilename().GetStringRef()));
+  auto binary = llvm::object::XCOFFObjectFile::createObjectFile(llvm::MemoryBufferRef(
+      toStringRef(m_data.GetData()), m_file.GetFilename().GetStringRef()),
+    file_magic::xcoff_object_64);
   if (!binary) {
     LLDB_LOG_ERROR(log, binary.takeError(),
                    "Failed to create binary for file ({1}): {0}", m_file);
@@ -274,7 +280,29 @@ lldb_private::DataExtractor ObjectFileXCOFF::ReadImageData(uint32_t offset, size
 
 bool ObjectFileXCOFF::SetLoadAddress(Target &target, lldb::addr_t value,
                                    bool value_is_offset) {
-  return false;
+  bool changed = false;
+  ModuleSP module_sp = GetModule();
+  if (module_sp) {
+    size_t num_loaded_sections = 0;
+    SectionList *section_list = GetSectionList();
+    if (section_list) {
+      const size_t num_sections = section_list->GetSize();
+      size_t sect_idx = 0;
+
+      for (sect_idx = 0; sect_idx < num_sections; ++sect_idx) {
+        // Iterate through the object file sections to find all of the sections
+        // that have SHF_ALLOC in their flag bits.
+        SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
+        if (section_sp && !section_sp->IsThreadSpecific()) {
+          if (target.GetSectionLoadList().SetSectionLoadAddress(
+                  section_sp, section_sp->GetFileAddress()/* + value */))
+            ++num_loaded_sections;
+        }
+      }
+      changed = num_loaded_sections > 0;
+    }
+  }
+  return changed;
 }
 
 ByteOrder ObjectFileXCOFF::GetByteOrder() const {
@@ -368,19 +396,6 @@ void ObjectFileXCOFF::CreateSections(SectionList &unified_section_list) {
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
 
-#if 0
-    lldb::offset_t offset = 0;
-    const uint32_t addr_byte_size = GetAddressByteSize();
-    SectionSP header_sp = std::make_shared<Section>(
-        module_sp, this, ~user_id_t(0), ConstString("XCOFF header"),
-        eSectionTypeOther, m_data.GetMaxU64(&offset, addr_byte_size),
-        sizeof(*m_binary->fileHeader64()), 0, sizeof(*m_binary->fileHeader64()),
-        0, 0);
-    header_sp->SetPermissions(ePermissionsReadable);
-    m_sections_up->AddSection(header_sp);
-    unified_section_list.AddSection(header_sp);
-#endif
-
     const uint32_t nsects = m_sect_headers.size();
     ModuleSP module_sp(GetModule());
     for (uint32_t idx = 0; idx < nsects; ++idx) {
@@ -441,7 +456,17 @@ SectionType ObjectFileXCOFF::GetSectionType(llvm::StringRef sect_name,
     return eSectionTypeData;
   if (sect.flags & XCOFF::STYP_BSS)
     return eSectionTypeZeroFill;
+  if (sect.flags & XCOFF::STYP_DWARF) {
+    SectionType section_type =
+      llvm::StringSwitch<SectionType>(sect_name)
+      .Case(".dwinfo", eSectionTypeDWARFDebugInfo)
+      .Case(".dwline", eSectionTypeDWARFDebugLine)
+      .Case(".dwabrev", eSectionTypeDWARFDebugAbbrev)
+      .Default(eSectionTypeInvalid);
 
+    if (section_type != eSectionTypeInvalid)
+      return section_type;
+  }
   return eSectionTypeOther;
 }
 
@@ -546,17 +571,6 @@ ObjectFile::Type ObjectFileXCOFF::CalculateType() {
 
 ObjectFile::Strata ObjectFileXCOFF::CalculateStrata() {
   return eStrataUnknown;
-}
-
-size_t ObjectFileXCOFF::ReadSectionData(Section *section,
-                       lldb::offset_t section_offset, void *dst,
-                       size_t dst_len) {
-  return 0;
-}
-
-size_t ObjectFileXCOFF::ReadSectionData(Section *section,
-                                      lldb_private::DataExtractor &section_data) {
-  return 0;
 }
 
 llvm::StringRef

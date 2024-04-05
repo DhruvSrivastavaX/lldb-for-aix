@@ -534,9 +534,11 @@ llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
 NativeThreadAIX::GetSiginfo() const {
   auto siginfo_buf =
       llvm::WritableMemoryBuffer::getNewUninitMemBuffer(sizeof(siginfo_t));
+#if 0
   Status error =
       GetProcess().GetSignalInfo(GetID(), siginfo_buf->getBufferStart());
   if (!error.Success())
     return error.ToError();
+#endif
   return std::move(siginfo_buf);
 }
