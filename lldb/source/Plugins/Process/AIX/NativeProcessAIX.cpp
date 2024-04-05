@@ -1546,34 +1546,6 @@ NativeProcessAIX::GetSoftwareBreakpointTrapOpcode(size_t size_hint) {
 
 Status NativeProcessAIX::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
                                       size_t &bytes_read) {
-  if (ProcessVmReadvSupported()) {
-    // The process_vm_readv path is about 50 times faster than ptrace api. We
-    // want to use this syscall if it is supported.
-
-    struct iovec local_iov, remote_iov;
-    local_iov.iov_base = buf;
-    local_iov.iov_len = size;
-    remote_iov.iov_base = reinterpret_cast<void *>(addr);
-    remote_iov.iov_len = size;
-
-#if 0
-    bytes_read = process_vm_readv(GetCurrentThreadID(), &local_iov, 1,
-                                  &remote_iov, 1, 0);
-#endif
-    const bool success = bytes_read == size;
-
-    Log *log = GetLog(POSIXLog::Process);
-    LLDB_LOG(log,
-             "using process_vm_readv to read {0} bytes from inferior "
-             "address {1:x}: {2}",
-             size, addr, success ? "Success" : llvm::sys::StrError(errno));
-
-    if (success)
-      return Status();
-    // else the call failed for some reason, let's retry the read using ptrace
-    // api.
-  }
-
   unsigned char *dst = static_cast<unsigned char *>(buf);
   size_t remainder;
   long data;
@@ -1583,7 +1555,7 @@ Status NativeProcessAIX::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
 
   for (bytes_read = 0; bytes_read < size; bytes_read += remainder) {
     Status error = NativeProcessAIX::PtraceWrapper(
-        PTRACE_PEEKDATA, GetCurrentThreadID(), (void *)addr, nullptr, 0, &data);
+        PT_READ_BLOCK, GetCurrentThreadID(), (void *)addr, nullptr, sizeof(data), &data);
     if (error.Fail())
       return error;
 
@@ -1609,40 +1581,12 @@ Status NativeProcessAIX::WriteMemory(lldb::addr_t addr, const void *buf,
   Log *log = GetLog(POSIXLog::Memory);
   LLDB_LOG(log, "addr = {0}, buf = {1}, size = {2}", addr, buf, size);
 
-  for (bytes_written = 0; bytes_written < size; bytes_written += remainder) {
-    remainder = size - bytes_written;
-    remainder = remainder > k_ptrace_word_size ? k_ptrace_word_size : remainder;
+  error = NativeProcessAIX::PtraceWrapper(
+    PT_WRITE_BLOCK, GetCurrentThreadID(), (void *)addr, nullptr, (int)size, (long *)buf);
+  if (error.Fail())
+    return error;
 
-    if (remainder == k_ptrace_word_size) {
-      unsigned long data = 0;
-      memcpy(&data, src, k_ptrace_word_size);
-
-      LLDB_LOG(log, "[{0:x}]:{1:x}", addr, data);
-      error = NativeProcessAIX::PtraceWrapper(
-          PTRACE_POKEDATA, GetCurrentThreadID(), (void *)addr, (void *)data);
-      if (error.Fail())
-        return error;
-    } else {
-      unsigned char buff[8];
-      size_t bytes_read;
-      error = ReadMemory(addr, buff, k_ptrace_word_size, bytes_read);
-      if (error.Fail())
-        return error;
-
-      memcpy(buff, src, remainder);
-
-      size_t bytes_written_rec;
-      error = WriteMemory(addr, buff, k_ptrace_word_size, bytes_written_rec);
-      if (error.Fail())
-        return error;
-
-      LLDB_LOG(log, "[{0:x}]:{1:x} ({2:x})", addr, *(const unsigned long *)src,
-               *(unsigned long *)buff);
-    }
-
-    addr += k_ptrace_word_size;
-    src += k_ptrace_word_size;
-  }
+  bytes_written = size;
   return error;
 }
 
@@ -1948,7 +1892,9 @@ void NativeProcessAIX::SigchldHandler() {
 #undef DECLARE_REGISTER_INFOS_PPC64LE_STRUCT
 
 static void GetRegister(lldb::pid_t pid, long long addr, void *buf) {
-  ptrace64(PT_READ_GPR, pid, addr, 0, (int *)buf);
+  uint64_t val = 0;
+  ptrace64(PT_READ_GPR, pid, addr, 0, (int *)&val);
+  *(uint64_t *)buf = llvm::ByteSwap_64(val);
 }
 
 // Wrapper for ptrace to catch errors and log calls. Note that ptrace sets
@@ -2009,6 +1955,10 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     if (req == PT_CONTINUE) {
       int buf;
       ptrace64(req, pid, 1, 0, &buf);
+    } else if (req == PT_READ_BLOCK) {
+      ptrace64(req, pid, (long long)addr, (int)data_size, (int *)result);
+    } else if (req == PT_WRITE_BLOCK) {
+      ptrace64(req, pid, (long long)addr, (int)data_size, (int *)result);
     } else {
       assert(0 && "Not supported yet.");
     }
@@ -2020,9 +1970,6 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     error.SetErrorToErrno();
     ret = -1;
   }
-
-  if (result)
-    *result = ret;
 
   LLDB_LOG(log, "ptrace({0}, {1}, {2}, {3}, {4})={5:x}", req, pid, addr, data,
            data_size, ret);

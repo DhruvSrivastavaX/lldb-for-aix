@@ -114,7 +114,17 @@ lldb::addr_t DynamicLoaderAIXDYLD::GetLoadAddress(ModuleSP executable) {
     return load_addr;
   }
 
+  //// Hack to try set breakpoint
+  //Breakpoint *dyld_break = m_process->GetTarget().CreateBreakpoint(0x100000638, true, false).get();
+  //dyld_break->SetCallback(DynamicLoaderAIXDYLD::NotifyBreakpointHit, this, true);
+  //dyld_break->SetBreakpointKind("hack-debug");
+
   return LLDB_INVALID_ADDRESS;
+}
+
+bool DynamicLoaderAIXDYLD::NotifyBreakpointHit(
+    void *baton, StoppointCallbackContext *context, lldb::user_id_t break_id,
+    lldb::user_id_t break_loc_id) {
 }
 
 void DynamicLoaderAIXDYLD::DidAttach() {

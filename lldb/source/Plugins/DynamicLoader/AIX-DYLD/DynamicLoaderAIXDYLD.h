@@ -41,6 +41,8 @@ public:
 
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
+  static bool NotifyBreakpointHit(void *baton, StoppointCallbackContext *context, lldb::user_id_t break_id, lldb::user_id_t break_loc_id);
+
 protected:
   lldb::addr_t GetLoadAddress(lldb::ModuleSP executable);
 

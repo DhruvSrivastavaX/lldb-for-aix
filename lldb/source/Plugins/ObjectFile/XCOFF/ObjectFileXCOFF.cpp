@@ -336,9 +336,10 @@ void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
       symbol.naux = symtab_data.GetU8(&offset);
       symbols[i].GetMangled().SetValue(ConstString(symbol_name.c_str()));
       if ((int16_t)symbol.sect >= 1) {
-        Address symbol_addr(sect_list->FindSectionByID(symbol.sect),
-                            symbol.value);
-        symbols[i].GetAddressRef() = symbol_addr;
+        if (symbol.storage == XCOFF::C_EXT) {
+          Address symbol_addr(symbol.value, sect_list);
+          symbols[i].GetAddressRef() = symbol_addr;
+        }
         Expected<llvm::object::SymbolRef::Type> sym_type_or_err = SI->getType();
         if (!sym_type_or_err) {
           Error err = sym_type_or_err.takeError();
