@@ -117,17 +117,17 @@ size_t ObjectFilePDB::GetModuleSpecifications(
   llvm::BumpPtrAllocator allocator;
   std::unique_ptr<PDBFile> pdb_file = loadPDBFile(file.GetPath(), allocator);
   if (!pdb_file)
-    return initial_count;
+    return specs.GetSize() - initial_count;
 
   auto info_stream = pdb_file->getPDBInfoStream();
   if (!info_stream) {
     llvm::consumeError(info_stream.takeError());
-    return initial_count;
+    return specs.GetSize() - initial_count;
   }
   auto dbi_stream = pdb_file->getPDBDbiStream();
   if (!dbi_stream) {
     llvm::consumeError(dbi_stream.takeError());
-    return initial_count;
+    return specs.GetSize() - initial_count;
   }
 
   lldb_private::UUID &uuid = module_spec.GetUUID();

@@ -955,8 +955,10 @@ DWARFUnitHeader::extract(const DWARFDataExtractor &data,
                          DIERef::Section section, DWARFContext &context,
                          lldb::offset_t *offset_ptr) {
   DWARFUnitHeader header;
+#if defined(__AIX__)
   // FIXME: hack to get version
   *offset_ptr += 8;
+#endif
   header.m_offset = *offset_ptr;
   header.m_length = data.GetDWARFInitialLength(offset_ptr);
   header.m_version = data.GetU16(offset_ptr);

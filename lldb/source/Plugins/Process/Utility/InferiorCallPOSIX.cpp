@@ -46,8 +46,13 @@ bool lldb_private::InferiorCallMmap(Process *process, addr_t &allocated_addr,
   function_options.include_inlines = false;
 
   SymbolContextList sc_list;
+#if !defined(__AIX__)
   process->GetTarget().GetImages().FindFunctions(
       ConstString("mmap"), eFunctionNameTypeFull, function_options, sc_list);
+#else
+  process->GetTarget().GetImages().FindFunctions(
+      ConstString(".mmap64"), eFunctionNameTypeFull, function_options, sc_list);
+#endif
   const uint32_t count = sc_list.GetSize();
   if (count > 0) {
     SymbolContext sc;
