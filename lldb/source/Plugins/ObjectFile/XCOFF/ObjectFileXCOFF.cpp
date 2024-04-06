@@ -189,7 +189,7 @@ bool ObjectFileXCOFF::ParseHeader() {
     if (ParseXCOFFHeader(m_data, &offset, m_xcoff_header)) {
       m_data.SetAddressByteSize(GetAddressByteSize());
       if (m_xcoff_header.auxhdrsize > 0)
-        ParseXCOFFOptionalHeader(&offset);
+        ParseXCOFFOptionalHeader(m_data, &offset);
       ParseSectionHeaders(offset);
     }
     return true;
@@ -212,10 +212,44 @@ bool ObjectFileXCOFF::ParseXCOFFHeader(lldb_private::DataExtractor &data,
   return true;
 }
 
-bool ObjectFileXCOFF::ParseXCOFFOptionalHeader(lldb::offset_t *offset_ptr) {
-  //FIXME
-  *offset_ptr += m_xcoff_header.auxhdrsize;
-  return false;
+bool ObjectFileXCOFF::ParseXCOFFOptionalHeader(lldb_private::DataExtractor &data,
+                                               lldb::offset_t *offset_ptr) {
+  lldb::offset_t init_offset = *offset_ptr;
+  //FIXME: data.ValidOffsetForDataOfSize
+  m_xcoff_aux_header.AuxMagic = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.Version = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.ReservedForDebugger = data.GetU32(offset_ptr);
+  m_xcoff_aux_header.TextStartAddr = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.DataStartAddr = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.TOCAnchorAddr = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.SecNumOfEntryPoint = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.SecNumOfText = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.SecNumOfData = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.SecNumOfTOC = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.SecNumOfLoader = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.SecNumOfBSS = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.MaxAlignOfText = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.MaxAlignOfData = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.ModuleType = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.CpuFlag = data.GetU8(offset_ptr);
+  m_xcoff_aux_header.CpuType = data.GetU8(offset_ptr);
+  m_xcoff_aux_header.TextPageSize = data.GetU8(offset_ptr);
+  m_xcoff_aux_header.DataPageSize = data.GetU8(offset_ptr);
+  m_xcoff_aux_header.StackPageSize = data.GetU8(offset_ptr);
+  m_xcoff_aux_header.FlagAndTDataAlignment = data.GetU8(offset_ptr);
+  m_xcoff_aux_header.TextSize = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.InitDataSize = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.BssDataSize = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.EntryPointAddr = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.MaxStackSize = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.MaxDataSize = data.GetU64(offset_ptr);
+  m_xcoff_aux_header.SecNumOfTData = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.SecNumOfTBSS = data.GetU16(offset_ptr);
+  m_xcoff_aux_header.XCOFF64Flag = data.GetU16(offset_ptr);
+  lldb::offset_t last_offset = *offset_ptr;
+  if ((last_offset - init_offset) < m_xcoff_header.auxhdrsize)
+    *offset_ptr += (m_xcoff_header.auxhdrsize - (last_offset - init_offset));
+  return true;
 }
 
 bool ObjectFileXCOFF::ParseSectionHeaders(
@@ -576,7 +610,21 @@ Address ObjectFileXCOFF::GetImageInfoAddress(Target *target) {
 }
 
 lldb_private::Address ObjectFileXCOFF::GetEntryPointAddress() {
-  return lldb_private::Address();
+  if (m_entry_point_address.IsValid())
+    return m_entry_point_address;
+
+  if (!ParseHeader() || !IsExecutable())
+    return m_entry_point_address;
+
+  SectionList *section_list = GetSectionList();
+  addr_t vm_addr = m_xcoff_aux_header.EntryPointAddr;
+
+  if (!section_list)
+    m_entry_point_address.SetOffset(vm_addr);
+  else
+    m_entry_point_address.ResolveAddressUsingFileSections(vm_addr,
+                                                          section_list);
+  return m_entry_point_address;
 }
 
 lldb_private::Address ObjectFileXCOFF::GetBaseAddress() {
@@ -622,7 +670,8 @@ ObjectFileXCOFF::ObjectFileXCOFF(const lldb::ModuleSP &module_sp,
                              const FileSpec *file, lldb::offset_t file_offset,
                              lldb::offset_t length)
     : ObjectFile(module_sp, file, file_offset, length, data_sp, data_offset),
-      m_xcoff_header(), m_sect_headers(), m_deps_filespec(), m_deps_base_members() {
+      m_xcoff_header(), m_sect_headers(), m_deps_filespec(), m_deps_base_members(),
+      m_entry_point_address() {
   ::memset(&m_xcoff_header, 0, sizeof(m_xcoff_header));
   if (file)
     m_file = *file;
@@ -633,6 +682,7 @@ ObjectFileXCOFF::ObjectFileXCOFF(const lldb::ModuleSP &module_sp,
                              const lldb::ProcessSP &process_sp,
                              addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
-      m_xcoff_header(), m_sect_headers(), m_deps_filespec(), m_deps_base_members() {
+      m_xcoff_header(), m_sect_headers(), m_deps_filespec(), m_deps_base_members(),
+      m_entry_point_address() {
   ::memset(&m_xcoff_header, 0, sizeof(m_xcoff_header));
 }
