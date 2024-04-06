@@ -1466,8 +1466,9 @@ Status NativeProcessAIX::GetFileLoadAddress(const llvm::StringRef &file_name,
   NativeThreadAIX &thread = *GetCurrentThread();
   NativeRegisterContextAIX &reg_ctx = thread.GetRegisterContext();
 
-  struct ld_info info[6];
-  if (ptrace64(PT_LDINFO, reg_ctx.GetThread().GetID(), (long long)&(info[0]), sizeof(info), nullptr) == 0) {
+  // FIXME: buffer size
+  struct ld_xinfo info[6];
+  if (ptrace64(PT_LDXINFO, reg_ctx.GetThread().GetID(), (long long)&(info[0]), sizeof(info), nullptr) == 0) {
     load_addr = (unsigned long)info[0].ldinfo_textorg;
     return Status();
   }

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cassert>
 #include <unordered_map>
+#include <string.h>
 
 #include "lldb/Core/FileSpecList.h"
 #include "lldb/Core/Module.h"
@@ -515,25 +516,46 @@ uint32_t ObjectFileXCOFF::ParseDependentModules() {
   StringRef ImportFileTable = ImportFilesOrError.get();
   const char *CurrentStr = ImportFileTable.data();
   const char *TableEnd = ImportFileTable.end();
+  const char *Basename = nullptr;
 
   for (size_t StrIndex = 0; CurrentStr < TableEnd;
        ++StrIndex, CurrentStr += strlen(CurrentStr) + 1) {
     if (StrIndex >= 3 && StrIndex % 3 == 1) {
+      // base_name
       llvm::StringRef dll_name(CurrentStr);
+      Basename = CurrentStr;
 
       // At this moment we only have the base name of the DLL. The full path can
       // only be seen after the dynamic loading.  Our best guess is Try to get it
       // with the help of the object file's directory.
       llvm::SmallString<128> dll_fullpath;
       FileSpec dll_specs(dll_name);
-      dll_specs.GetDirectory().SetString(m_file.GetDirectory().GetCString());
+      // FIXME: hack to get libc.a loaded
+      if (strcmp(CurrentStr, "libc.a") == 0) {
+        dll_specs.GetDirectory().SetString("/usr/ccs/lib");
+      } else {
+        dll_specs.GetDirectory().SetString(m_file.GetDirectory().GetCString());
+      }
 
       if (!llvm::sys::fs::real_path(dll_specs.GetPath(), dll_fullpath))
-        m_deps_filespec->EmplaceBack(dll_fullpath);
+        //m_deps_filespec->EmplaceBack(dll_fullpath);
+        m_deps_filespec->EmplaceBack("/usr/ccs/lib/libc.a(shr_64.o)");
       else {
         // Known DLLs or DLL not found in the object file directory.
         m_deps_filespec->EmplaceBack(dll_name);
       }
+    } else if (StrIndex >= 3 && StrIndex % 3 == 2) {
+      // archive_member_name
+      if (strcmp(CurrentStr, "") == 0) {
+        continue;
+      }
+      assert(strcmp(Basename, "") != 0);
+      std::map<std::string, std::vector<std::string>>::iterator iter = m_deps_base_members.find(std::string(Basename));
+      if (iter == m_deps_base_members.end()) {
+        m_deps_base_members[std::string(Basename)] = std::vector<std::string>();
+        iter = m_deps_base_members.find(std::string(Basename));
+      }
+      iter->second.push_back(std::string(CurrentStr));
     }
   }
   return m_deps_filespec->GetSize();
@@ -600,7 +622,7 @@ ObjectFileXCOFF::ObjectFileXCOFF(const lldb::ModuleSP &module_sp,
                              const FileSpec *file, lldb::offset_t file_offset,
                              lldb::offset_t length)
     : ObjectFile(module_sp, file, file_offset, length, data_sp, data_offset),
-      m_xcoff_header(), m_sect_headers(), m_deps_filespec() {
+      m_xcoff_header(), m_sect_headers(), m_deps_filespec(), m_deps_base_members() {
   ::memset(&m_xcoff_header, 0, sizeof(m_xcoff_header));
   if (file)
     m_file = *file;
@@ -611,6 +633,6 @@ ObjectFileXCOFF::ObjectFileXCOFF(const lldb::ModuleSP &module_sp,
                              const lldb::ProcessSP &process_sp,
                              addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
-      m_xcoff_header(), m_sect_headers(), m_deps_filespec() {
+      m_xcoff_header(), m_sect_headers(), m_deps_filespec(), m_deps_base_members() {
   ::memset(&m_xcoff_header, 0, sizeof(m_xcoff_header));
 }

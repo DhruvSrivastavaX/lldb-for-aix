@@ -196,6 +196,7 @@ private:
   SectionHeaderColl m_sect_headers;
   std::unique_ptr<llvm::object::XCOFFObjectFile> m_binary;
   llvm::Optional<lldb_private::FileSpecList> m_deps_filespec;
+  std::map<std::string, std::vector<std::string>> m_deps_base_members;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_ELF_OBJECTFILEELF_H

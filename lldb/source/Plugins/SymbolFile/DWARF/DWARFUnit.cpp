@@ -955,6 +955,8 @@ DWARFUnitHeader::extract(const DWARFDataExtractor &data,
                          DIERef::Section section, DWARFContext &context,
                          lldb::offset_t *offset_ptr) {
   DWARFUnitHeader header;
+  // FIXME: hack to get version
+  *offset_ptr += 8;
   header.m_offset = *offset_ptr;
   header.m_length = data.GetDWARFInitialLength(offset_ptr);
   header.m_version = data.GetU16(offset_ptr);
@@ -1069,6 +1071,11 @@ const lldb_private::DWARFDataExtractor &DWARFUnit::GetData() const {
 uint32_t DWARFUnit::GetHeaderByteSize() const {
   switch (m_header.GetUnitType()) {
   case llvm::dwarf::DW_UT_compile:
+#if defined (__AIX__)
+    return 11 + 4/*GetDWARFSizeOfOffset*/;
+#else
+    return GetVersion() < 5 ? 11 : 12;
+#endif
   case llvm::dwarf::DW_UT_partial:
     return GetVersion() < 5 ? 11 : 12;
   case llvm::dwarf::DW_UT_skeleton:
