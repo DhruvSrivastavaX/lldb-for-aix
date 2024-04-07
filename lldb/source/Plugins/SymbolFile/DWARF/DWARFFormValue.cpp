@@ -511,7 +511,9 @@ DWARFFormValue::ReferencedUnitAndOffset() const {
   case DW_FORM_ref_udata:
     assert(m_unit); // Unit must be valid for DW_FORM_ref forms that are compile
                     // unit relative or we will get this wrong
+#if !defined(__AIX__)
     value += m_unit->GetOffset();
+#endif
     if (!m_unit->ContainsDIEOffset(value)) {
       m_unit->GetSymbolFileDWARF().GetObjectFile()->GetModule()->ReportError(
           "DW_FORM_ref* DIE reference {0:x16} is outside of its CU", value);

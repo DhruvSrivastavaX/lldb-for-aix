@@ -48,7 +48,9 @@
 #include "ProcessGDBRemote.h"
 #include "ProcessGDBRemoteLog.h"
 #include "lldb/Utility/StringExtractorGDBRemote.h"
+#if defined(__AIX__)
 #include <sys/ldr.h>
+#endif
 
 using namespace lldb;
 using namespace lldb_private;
@@ -3015,6 +3017,7 @@ GDBRemoteCommunicationServerLLGS::Handle_qLDXINFO(StringExtractorGDBRemote &pack
     return SendErrorResponse(0xff);
   }
 
+#if defined(__AIX__)
   // FIXME: buffer size
   struct ld_xinfo info[6];
   if (ptrace64(PT_LDXINFO, m_current_process->GetID(), (long long)&(info[0]), sizeof(info), nullptr) != 0) {
@@ -3023,6 +3026,9 @@ GDBRemoteCommunicationServerLLGS::Handle_qLDXINFO(StringExtractorGDBRemote &pack
   StreamGDBRemote response;
   response.PutBytesAsRawHex8(&(info[0]), sizeof(info));
   return SendPacketNoLock(response.GetString());
+#else
+  return SendErrorResponse(0xff);
+#endif
 }
 
 GDBRemoteCommunication::PacketResult

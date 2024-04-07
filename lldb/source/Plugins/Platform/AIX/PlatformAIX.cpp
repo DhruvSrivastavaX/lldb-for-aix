@@ -292,7 +292,11 @@ MmapArgList PlatformAIX::GetMmapArgumentList(const ArchSpec &arch,
                                                addr_t addr, addr_t length,
                                                unsigned prot, unsigned flags,
                                                addr_t fd, addr_t offset) {
+#if defined(__AIX__)
   unsigned flags_platform = MAP_VARIABLE | MAP_PRIVATE | MAP_ANONYMOUS;
+#else
+  unsigned flags_platform = 0;
+#endif
   MmapArgList args({addr, length, prot, flags_platform, fd, offset});
   return args;
 }

@@ -18,7 +18,9 @@
 #include "lldb/Target/ThreadPlanStepInstruction.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
+#if defined(__AIX__)
 #include <sys/ldr.h>
+#endif
 
 #include "llvm/ADT/Triple.h"
 
@@ -178,6 +180,7 @@ void DynamicLoaderAIXDYLD::DidLaunch() {
     LLDB_LOG_ERROR(log, std::move(error), "failed to load modules: {0}");
   }
 
+#if defined(__AIX__)
   // Get struct ld_xinfo (FIXME)
   struct ld_xinfo ldinfo[6];
   Status status = m_process->GetLDXINFO(&(ldinfo[0]));
@@ -215,6 +218,7 @@ void DynamicLoaderAIXDYLD::DidLaunch() {
       ptr = (struct ld_xinfo *)((char *)ptr + ptr->ldinfo_next);
     }
   }
+#endif
 }
 
 Status DynamicLoaderAIXDYLD::CanLoadImage() { return Status(); }
