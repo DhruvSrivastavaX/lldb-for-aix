@@ -330,8 +330,46 @@ bool ObjectFileXCOFF::SetLoadAddress(Target &target, lldb::addr_t value,
         SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
         if (section_sp && !section_sp->IsThreadSpecific()) {
           if (target.GetSectionLoadList().SetSectionLoadAddress(
-                  section_sp, section_sp->GetFileAddress()/* + value */))
+                  section_sp, (strcmp(section_sp->GetName().AsCString(), ".text") == 0 ?
+                  (section_sp->GetFileOffset() + value) : (section_sp->GetFileAddress() + value))))
             ++num_loaded_sections;
+        }
+      }
+      changed = num_loaded_sections > 0;
+    }
+  }
+  return changed;
+}
+
+bool ObjectFileXCOFF::SetLoadAddressByType(Target &target, lldb::addr_t value,
+                                   bool value_is_offset, int type_id) {
+  bool changed = false;
+  ModuleSP module_sp = GetModule();
+  if (module_sp) {
+    size_t num_loaded_sections = 0;
+    SectionList *section_list = GetSectionList();
+    if (section_list) {
+      const size_t num_sections = section_list->GetSize();
+      size_t sect_idx = 0;
+
+      for (sect_idx = 0; sect_idx < num_sections; ++sect_idx) {
+        // Iterate through the object file sections to find all of the sections
+        // that have SHF_ALLOC in their flag bits.
+        SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
+        if (type_id == 1 && section_sp && strcmp(section_sp->GetName().AsCString(), ".text") == 0) {
+          if (!section_sp->IsThreadSpecific()) {
+            if (target.GetSectionLoadList().SetSectionLoadAddress(
+                    section_sp, section_sp->GetFileOffset() + value))
+              ++num_loaded_sections;
+          }
+        } else if (type_id == 2 && section_sp && strcmp(section_sp->GetName().AsCString(), ".data") == 0) {
+          if (!section_sp->IsThreadSpecific()) {
+            if (target.GetSectionLoadList().SetSectionLoadAddress(
+                    section_sp, section_sp->GetFileAddress() + value))
+              ++num_loaded_sections;
+          }
+        } else {
+          assert(0);
         }
       }
       changed = num_loaded_sections > 0;
@@ -399,10 +437,10 @@ void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
       symbol.naux = symtab_data.GetU8(&offset);
       symbols[i].GetMangled().SetValue(ConstString(symbol_name.c_str()));
       if ((int16_t)symbol.sect >= 1) {
-        if (symbol.storage == XCOFF::C_EXT) {
-          Address symbol_addr(symbol.value, sect_list);
-          symbols[i].GetAddressRef() = symbol_addr;
-        }
+        Address symbol_addr(sect_list->GetSectionAtIndex((size_t)(symbol.sect - 1)),
+                            (symbol.value - sect_list->GetSectionAtIndex((size_t)(symbol.sect - 1))->GetFileAddress()));
+        symbols[i].GetAddressRef() = symbol_addr;
+
         Expected<llvm::object::SymbolRef::Type> sym_type_or_err = SI->getType();
         if (!sym_type_or_err) {
           Error err = sym_type_or_err.takeError();
@@ -566,14 +604,14 @@ uint32_t ObjectFileXCOFF::ParseDependentModules() {
       FileSpec dll_specs(dll_name);
       // FIXME: hack to get libc.a loaded
       if (strcmp(CurrentStr, "libc.a") == 0) {
-        dll_specs.GetDirectory().SetString("/usr/ccs/lib");
+        dll_specs.GetDirectory().SetString("/usr/lib");
       } else {
         dll_specs.GetDirectory().SetString(m_file.GetDirectory().GetCString());
       }
 
       if (!llvm::sys::fs::real_path(dll_specs.GetPath(), dll_fullpath))
         //m_deps_filespec->EmplaceBack(dll_fullpath);
-        m_deps_filespec->EmplaceBack("/usr/ccs/lib/libc.a(shr_64.o)");
+        m_deps_filespec->EmplaceBack("/usr/lib/libc.a(shr_64.o)");
       else {
         // Known DLLs or DLL not found in the object file directory.
         m_deps_filespec->EmplaceBack(dll_name);

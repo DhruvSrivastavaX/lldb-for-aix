@@ -75,6 +75,9 @@ public:
   bool SetLoadAddress(lldb_private::Target &target, lldb::addr_t value,
                       bool value_is_offset) override;
 
+  bool SetLoadAddressByType(lldb_private::Target &target, lldb::addr_t value,
+                              bool value_is_offset, int type_id) override;
+
   lldb::ByteOrder GetByteOrder() const override;
 
   bool IsExecutable() const override;

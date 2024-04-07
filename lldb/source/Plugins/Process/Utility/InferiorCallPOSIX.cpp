@@ -52,6 +52,27 @@ bool lldb_private::InferiorCallMmap(Process *process, addr_t &allocated_addr,
 #else
   process->GetTarget().GetImages().FindFunctions(
       ConstString(".mmap64"), eFunctionNameTypeFull, function_options, sc_list);
+  SymbolContextList toc_list;
+  process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      ConstString("TOC"), lldb::eSymbolTypeAny, toc_list);
+
+  AddressRange toc_range;
+  if (sc_list.GetSize() > 0) {
+    SymbolContext sc;
+    if (sc_list.GetContextAtIndex(0, sc)) {
+      for (int i = 0; i < toc_list.GetSize(); ++i) {
+        SymbolContext tocSC;
+        if (toc_list.GetContextAtIndex(i, tocSC)) {
+          if (tocSC.module_sp == sc.module_sp) {
+            if (tocSC.GetAddressRange(eSymbolContextSymbol, 0, false,
+                                   toc_range)) {
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
 #endif
   const uint32_t count = sc_list.GetSize();
   if (count > 0) {
@@ -103,6 +124,7 @@ bool lldb_private::InferiorCallMmap(Process *process, addr_t &allocated_addr,
                 arch, addr, length, prot_arg, flags, fd, offset);
         lldb::ThreadPlanSP call_plan_sp(
             new ThreadPlanCallFunction(*thread, mmap_range.GetBaseAddress(),
+                                       toc_range.GetBaseAddress(),
                                        void_ptr_type, args, options));
         if (call_plan_sp) {
           DiagnosticManager diagnostics;

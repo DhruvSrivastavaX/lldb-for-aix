@@ -187,9 +187,28 @@ void DynamicLoaderAIXDYLD::DidLaunch() {
     return;
   }
   struct ld_xinfo *ptr = &(ldinfo[0]);
+  bool skip_current = true;
   while (ptr != nullptr) {
-    char *strName = (char *)ptr + ptr->ldinfo_filename;
-    strName += (strlen(strName) + 1);
+    char *pathName = (char *)ptr + ptr->ldinfo_filename;
+    char *memberName = pathName + (strlen(pathName) + 1);
+    if (!skip_current) {
+      // FIXME: buffer size
+      char pathWithMember[128] = {0};
+      if (strlen(memberName) > 0) {
+        sprintf(pathWithMember, "%s(%s)", pathName, memberName);
+      } else {
+        sprintf(pathWithMember, "%s", pathName);
+      }
+      FileSpec file(pathWithMember);
+      ModuleSpec module_spec(file, m_process->GetTarget().GetArchitecture());
+      if (ModuleSP module_sp = m_process->GetTarget().GetOrCreateModule(module_spec, true /* notify */)) {
+        UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr->ldinfo_textorg, false, 1);
+        UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr->ldinfo_dataorg, false, 2);
+        // FIXME: .tdata, .bss
+      }
+    } else {
+      skip_current = false;
+    }
     if (ptr->ldinfo_next == 0) {
       ptr = nullptr;
     } else {

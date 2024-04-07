@@ -30,8 +30,10 @@
 
 // Define these constants from AIX mman.h for use when targeting remote aix
 // systems even when host has different values.
-#define MAP_PRIVATE 2
-#define MAP_ANON 0x20
+
+#if defined(__AIX__)
+#include <sys/mman.h>
+#endif
 
 using namespace lldb;
 using namespace lldb_private;
@@ -290,14 +292,7 @@ MmapArgList PlatformAIX::GetMmapArgumentList(const ArchSpec &arch,
                                                addr_t addr, addr_t length,
                                                unsigned prot, unsigned flags,
                                                addr_t fd, addr_t offset) {
-  uint64_t flags_platform = 0;
-  uint64_t map_anon = arch.IsMIPS() ? 0x800 : MAP_ANON;
-
-  if (flags & eMmapFlagsPrivate)
-    flags_platform |= MAP_PRIVATE;
-  if (flags & eMmapFlagsAnon)
-    flags_platform |= map_anon;
-
+  unsigned flags_platform = MAP_VARIABLE | MAP_PRIVATE | MAP_ANONYMOUS;
   MmapArgList args({addr, length, prot, flags_platform, fd, offset});
   return args;
 }
