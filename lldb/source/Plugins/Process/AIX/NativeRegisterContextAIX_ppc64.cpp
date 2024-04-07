@@ -261,6 +261,7 @@ Status NativeRegisterContextAIX_ppc64::WriteRegister(
 
     uint8_t *dst = (uint8_t *)&m_gpr_ppc64le + reg_info->byte_offset;
     ::memcpy(dst, reg_value.GetBytes(), reg_value.GetByteSize());
+    *(uint64_t *)dst = llvm::ByteSwap_64(*(uint64_t *)dst);
 
     error = WriteGPR();
     if (error.Fail())

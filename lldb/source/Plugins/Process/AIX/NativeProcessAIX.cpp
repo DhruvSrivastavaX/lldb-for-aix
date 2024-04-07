@@ -1655,6 +1655,11 @@ static void GetRegister(lldb::pid_t pid, long long addr, void *buf) {
   *(uint64_t *)buf = llvm::ByteSwap_64(val);
 }
 
+static void SetRegister(lldb::pid_t pid, long long addr, void *buf) {
+  uint64_t val = llvm::ByteSwap_64(*(uint64_t *)buf);
+  ptrace64(PT_WRITE_GPR, pid, addr, 0, (int *)&val);
+}
+
 // Wrapper for ptrace to catch errors and log calls. Note that ptrace sets
 // errno on error because -1 can be a valid result (i.e. for PTRACE_PEEK*)
 Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
@@ -1709,6 +1714,46 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     GetRegister(pid, LR, &(((GPR *)data)->lr));
     GetRegister(pid, XER, &(((GPR *)data)->xer));
     GetRegister(pid, CR, &(((GPR *)data)->cr));
+  } else if (req == PTRACE_SETREGS) {
+    SetRegister(pid, GPR0, &(((GPR *)data)->r0));
+    SetRegister(pid, GPR1, &(((GPR *)data)->r1));
+    SetRegister(pid, GPR2, &(((GPR *)data)->r2));
+    SetRegister(pid, GPR3, &(((GPR *)data)->r3));
+    SetRegister(pid, GPR4, &(((GPR *)data)->r4));
+    SetRegister(pid, GPR5, &(((GPR *)data)->r5));
+    SetRegister(pid, GPR6, &(((GPR *)data)->r6));
+    SetRegister(pid, GPR7, &(((GPR *)data)->r7));
+    SetRegister(pid, GPR8, &(((GPR *)data)->r8));
+    SetRegister(pid, GPR9, &(((GPR *)data)->r9));
+    SetRegister(pid, GPR10, &(((GPR *)data)->r10));
+    SetRegister(pid, GPR11, &(((GPR *)data)->r11));
+    SetRegister(pid, GPR12, &(((GPR *)data)->r12));
+    SetRegister(pid, GPR13, &(((GPR *)data)->r13));
+    SetRegister(pid, GPR14, &(((GPR *)data)->r14));
+    SetRegister(pid, GPR15, &(((GPR *)data)->r15));
+    SetRegister(pid, GPR16, &(((GPR *)data)->r16));
+    SetRegister(pid, GPR17, &(((GPR *)data)->r17));
+    SetRegister(pid, GPR18, &(((GPR *)data)->r18));
+    SetRegister(pid, GPR19, &(((GPR *)data)->r19));
+    SetRegister(pid, GPR20, &(((GPR *)data)->r20));
+    SetRegister(pid, GPR21, &(((GPR *)data)->r21));
+    SetRegister(pid, GPR22, &(((GPR *)data)->r22));
+    SetRegister(pid, GPR23, &(((GPR *)data)->r23));
+    SetRegister(pid, GPR24, &(((GPR *)data)->r24));
+    SetRegister(pid, GPR25, &(((GPR *)data)->r25));
+    SetRegister(pid, GPR26, &(((GPR *)data)->r26));
+    SetRegister(pid, GPR27, &(((GPR *)data)->r27));
+    SetRegister(pid, GPR28, &(((GPR *)data)->r28));
+    SetRegister(pid, GPR29, &(((GPR *)data)->r29));
+    SetRegister(pid, GPR30, &(((GPR *)data)->r30));
+    SetRegister(pid, GPR31, &(((GPR *)data)->r31));
+    SetRegister(pid, IAR, &(((GPR *)data)->pc));
+    SetRegister(pid, MSR, &(((GPR *)data)->msr));
+    //FIXME: origr3/softe/trap on AIX?
+    SetRegister(pid, CTR, &(((GPR *)data)->ctr));
+    SetRegister(pid, LR, &(((GPR *)data)->lr));
+    SetRegister(pid, XER, &(((GPR *)data)->xer));
+    SetRegister(pid, CR, &(((GPR *)data)->cr));
   } else if (req < PT_COMMAND_MAX) {
     if (req == PT_CONTINUE) {
       int buf;
