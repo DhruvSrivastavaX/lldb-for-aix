@@ -182,7 +182,7 @@ void DynamicLoaderAIXDYLD::DidLaunch() {
 
 #if defined(__AIX__)
   // Get struct ld_xinfo (FIXME)
-  struct ld_xinfo ldinfo[6];
+  struct ld_xinfo ldinfo[64];
   Status status = m_process->GetLDXINFO(&(ldinfo[0]));
   if (status.Fail()) {
     Log *log = GetLog(LLDBLog::DynamicLoader);

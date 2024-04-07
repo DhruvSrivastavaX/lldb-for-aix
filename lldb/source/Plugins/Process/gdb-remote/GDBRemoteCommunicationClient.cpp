@@ -1728,9 +1728,9 @@ Status GDBRemoteCommunicationClient::GetLDXINFO(struct ld_xinfo *info_ptr)
   if (SendPacketAndWaitForResponse(packet, response) ==
           PacketResult::Success &&
       response.GetResponseType() == StringExtractorGDBRemote::eResponse) {
-    llvm::MutableArrayRef<uint8_t> infoData((uint8_t *)info_ptr, sizeof(struct ld_xinfo)*6);
+    llvm::MutableArrayRef<uint8_t> infoData((uint8_t *)info_ptr, sizeof(struct ld_xinfo)*64);
     size_t got_bytes = response.GetHexBytesAvail(infoData);
-    if (got_bytes != sizeof(struct ld_xinfo)*6) {
+    if (got_bytes != sizeof(struct ld_xinfo)*64) {
       error.SetErrorString("qLDXINFO ret bad size");
       return error;
     }

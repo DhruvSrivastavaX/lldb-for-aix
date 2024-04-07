@@ -74,9 +74,7 @@ bool ThreadPlanCallFunction::ConstructorSetup(
     return false;
   }
 
-  //m_start_addr = *start_address;
-  // FIXME!!!
-  m_start_addr = 0x100000438;
+  m_start_addr = *start_address;
   start_load_addr = m_start_addr.GetLoadAddress(&GetTarget());
 
   // Checkpoint the thread state so we can restore it later.

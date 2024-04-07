@@ -80,9 +80,11 @@ void PlatformAIX::Initialize() {
   PlatformPOSIX::Initialize();
 
   if (g_initialize_count++ == 0) {
+#if defined(__AIX__)
     PlatformSP default_platform_sp(new PlatformAIX(true));
     default_platform_sp->SetSystemArchitecture(HostInfo::GetArchitecture());
     Platform::SetHostPlatform(default_platform_sp);
+#endif
     PluginManager::RegisterPlugin(
         PlatformAIX::GetPluginNameStatic(false),
         PlatformAIX::GetPluginDescriptionStatic(false),

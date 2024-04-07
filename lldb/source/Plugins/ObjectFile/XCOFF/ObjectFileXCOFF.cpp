@@ -329,8 +329,14 @@ bool ObjectFileXCOFF::SetLoadAddress(Target &target, lldb::addr_t value,
         // that have SHF_ALLOC in their flag bits.
         SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
         if (section_sp && !section_sp->IsThreadSpecific()) {
+          bool use_offset = false;
+          if (strcmp(section_sp->GetName().AsCString(), ".text") == 0 ||
+              strcmp(section_sp->GetName().AsCString(), ".data") == 0 ||
+              strcmp(section_sp->GetName().AsCString(), ".bss") == 0)
+            use_offset = true;
+
           if (target.GetSectionLoadList().SetSectionLoadAddress(
-                  section_sp, (strcmp(section_sp->GetName().AsCString(), ".text") == 0 ?
+                  section_sp, (use_offset ?
                   (section_sp->GetFileOffset() + value) : (section_sp->GetFileAddress() + value))))
             ++num_loaded_sections;
         }
@@ -368,8 +374,6 @@ bool ObjectFileXCOFF::SetLoadAddressByType(Target &target, lldb::addr_t value,
                     section_sp, section_sp->GetFileAddress() + value))
               ++num_loaded_sections;
           }
-        } else {
-          assert(0);
         }
       }
       changed = num_loaded_sections > 0;
@@ -585,6 +589,7 @@ uint32_t ObjectFileXCOFF::ParseDependentModules() {
     return 0;
   }
 
+#if 0
   StringRef ImportFileTable = ImportFilesOrError.get();
   const char *CurrentStr = ImportFileTable.data();
   const char *TableEnd = ImportFileTable.end();
@@ -630,6 +635,7 @@ uint32_t ObjectFileXCOFF::ParseDependentModules() {
       iter->second.push_back(std::string(CurrentStr));
     }
   }
+#endif
   return m_deps_filespec->GetSize();
 }
 
@@ -656,6 +662,12 @@ lldb_private::Address ObjectFileXCOFF::GetEntryPointAddress() {
 
   SectionList *section_list = GetSectionList();
   addr_t vm_addr = m_xcoff_aux_header.EntryPointAddr;
+  SectionSP section_sp(
+      section_list->FindSectionContainingFileAddress(vm_addr));
+  if (section_sp) {
+    lldb::offset_t offset_ptr = section_sp->GetFileOffset() + (vm_addr - section_sp->GetFileAddress());
+    vm_addr = m_data.GetU64(&offset_ptr);
+  }
 
   if (!section_list)
     m_entry_point_address.SetOffset(vm_addr);

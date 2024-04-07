@@ -3019,7 +3019,7 @@ GDBRemoteCommunicationServerLLGS::Handle_qLDXINFO(StringExtractorGDBRemote &pack
 
 #if defined(__AIX__)
   // FIXME: buffer size
-  struct ld_xinfo info[6];
+  struct ld_xinfo info[64];
   if (ptrace64(PT_LDXINFO, m_current_process->GetID(), (long long)&(info[0]), sizeof(info), nullptr) != 0) {
     return SendErrorResponse(0xff);
   }
