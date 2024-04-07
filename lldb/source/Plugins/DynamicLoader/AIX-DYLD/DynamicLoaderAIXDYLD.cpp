@@ -18,6 +18,7 @@
 #include "lldb/Target/ThreadPlanStepInstruction.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
+#include <sys/ldr.h>
 
 #include "llvm/ADT/Triple.h"
 
@@ -175,6 +176,25 @@ void DynamicLoaderAIXDYLD::DidLaunch() {
     m_process->GetTarget().ModulesDidLoad(module_list);
     auto error = m_process->LoadModules();
     LLDB_LOG_ERROR(log, std::move(error), "failed to load modules: {0}");
+  }
+
+  // Get struct ld_xinfo (FIXME)
+  struct ld_xinfo ldinfo[6];
+  Status status = m_process->GetLDXINFO(&(ldinfo[0]));
+  if (status.Fail()) {
+    Log *log = GetLog(LLDBLog::DynamicLoader);
+    LLDB_LOG(log, "LDXINFO failed: {0}", status);
+    return;
+  }
+  struct ld_xinfo *ptr = &(ldinfo[0]);
+  while (ptr != nullptr) {
+    char *strName = (char *)ptr + ptr->ldinfo_filename;
+    strName += (strlen(strName) + 1);
+    if (ptr->ldinfo_next == 0) {
+      ptr = nullptr;
+    } else {
+      ptr = (struct ld_xinfo *)((char *)ptr + ptr->ldinfo_next);
+    }
   }
 }
 

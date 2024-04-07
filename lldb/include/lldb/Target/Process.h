@@ -63,6 +63,10 @@
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/VersionTuple.h"
 
+#if defined(__AIX__)
+struct ld_xinfo;
+#endif
+
 namespace lldb_private {
 
 template <typename B, typename S> struct Range;
@@ -1907,6 +1911,10 @@ public:
   Status GetMemoryRegionInfo(lldb::addr_t load_addr,
                              MemoryRegionInfo &range_info);
 
+#if defined(__AIX__)
+  Status GetLDXINFO(struct ld_xinfo *info_ptr);
+#endif
+
   /// Obtain all the mapped memory regions within this process.
   ///
   /// \param[out] region_list
@@ -2797,6 +2805,12 @@ protected:
                                        MemoryRegionInfo &range_info) {
     return Status("Process::DoGetMemoryRegionInfo() not supported");
   }
+
+#if defined(__AIX__)
+  virtual Status DoGetLDXINFO(struct ld_xinfo *info_ptr) {
+    return Status("Process::DoGetLDXINFO() not supported");
+  }
+#endif
 
   /// Provide an override value in the subclass for lldb's
   /// CPU-based logic for whether watchpoint exceptions are
