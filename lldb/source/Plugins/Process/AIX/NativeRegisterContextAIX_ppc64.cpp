@@ -18,6 +18,7 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
+#include "lldb/Host/aix/Ptrace.h"
 
 #include "Plugins/Process/AIX/NativeProcessAIX.h"
 #include "Plugins/Process/Linux/Procfs.h"
@@ -465,10 +466,8 @@ uint32_t NativeRegisterContextAIX_ppc64::CalculateVsxOffset(
 }
 
 Status NativeRegisterContextAIX_ppc64::ReadVMX() {
-  //FIXME
-  int regset = 0/*NT_PPC_VMX*/;
-  return NativeProcessAIX::PtraceWrapper(PT_CLEAR/*PTRACE_GETVRREGS*/, m_thread.GetID(),
-                                           &regset, &m_vmx_ppc64le,
+  return NativeProcessAIX::PtraceWrapper(PTRACE_GETVRREGS, m_thread.GetID(),
+                                           nullptr, &m_vmx_ppc64le,
                                            sizeof(m_vmx_ppc64le));
 }
 
@@ -481,10 +480,8 @@ Status NativeRegisterContextAIX_ppc64::WriteVMX() {
 }
 
 Status NativeRegisterContextAIX_ppc64::ReadVSX() {
-  //FIXME
-  int regset = 0/*NT_PPC_VSX*/;
-  return NativeProcessAIX::PtraceWrapper(PT_CLEAR/*PTRACE_GETVSRREGS*/, m_thread.GetID(),
-                                           &regset, &m_vsx_ppc64le,
+  return NativeProcessAIX::PtraceWrapper(PTRACE_GETVSRREGS, m_thread.GetID(),
+                                           nullptr, &m_vsx_ppc64le,
                                            sizeof(m_vsx_ppc64le));
 }
 

@@ -52,6 +52,12 @@
 #ifndef PTRACE_POKEMTETAGS
 #define PTRACE_POKEMTETAGS      (PT_COMMAND_MAX+8)
 #endif
+#ifndef PTRACE_GETVRREGS
+#define PTRACE_GETVRREGS        (PT_COMMAND_MAX+9)
+#endif
+#ifndef PTRACE_GETVSRREGS
+#define PTRACE_GETVSRREGS       (PT_COMMAND_MAX+10)
+#endif
 
 #define LLDB_PTRACE_NT_ARM_TLS 0x401 // ARM TLS register
 

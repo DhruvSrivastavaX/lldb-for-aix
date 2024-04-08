@@ -1621,6 +1621,24 @@ static void SetRegister(lldb::pid_t pid, long long addr, void *buf) {
   ptrace64(PT_WRITE_GPR, pid, addr, 0, (int *)&val);
 }
 
+static void GetFPRegister(lldb::pid_t pid, long long addr, void *buf) {
+  uint64_t val = 0;
+  ptrace64(PT_READ_FPR, pid, addr, 0, (int *)&val);
+  *(uint64_t *)buf = llvm::ByteSwap_64(val);
+}
+
+static void GetVMRegister(lldb::tid_t tid, long long addr, void *buf) {
+  uint64_t val = 0;
+  ptrace64(PTT_READ_VEC, tid, addr, 0, (int *)&val);
+  //*(uint64_t *)buf = llvm::ByteSwap_64(val);
+}
+
+static void GetVSRegister(lldb::tid_t tid, long long addr, void *buf) {
+  uint64_t val = 0;
+  ptrace64(PTT_READ_VSX, tid, addr, 0, (int *)&val);
+  //*(uint64_t *)buf = llvm::ByteSwap_64(val);
+}
+
 // Wrapper for ptrace to catch errors and log calls. Note that ptrace sets
 // errno on error because -1 can be a valid result (i.e. for PTRACE_PEEK*)
 Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
@@ -1634,6 +1652,25 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
   PtraceDisplayBytes(req, data, data_size);
 
   errno = 0;
+
+  // for PTT_*
+  const char procdir[] = "/proc/";
+  const char lwpdir[] = "/lwp/";
+  std::string process_task_dir = procdir + std::to_string(pid) + lwpdir;
+  DIR *dirproc = opendir(process_task_dir.c_str());
+
+  lldb::tid_t tid = 0;
+  if (dirproc) {
+    struct dirent *direntry = nullptr;
+    while ((direntry = readdir(dirproc)) != nullptr) {
+      if (strcmp(direntry->d_name, ".") == 0 || strcmp(direntry->d_name, "..") == 0) {
+        continue;
+      }
+      tid = atoi(direntry->d_name);
+      break;
+    }
+    closedir(dirproc);
+  }
 
   if (req == PTRACE_GETREGS) {
     GetRegister(pid, GPR0, &(((GPR *)data)->r0));
@@ -1715,6 +1752,140 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     SetRegister(pid, LR, &(((GPR *)data)->lr));
     SetRegister(pid, XER, &(((GPR *)data)->xer));
     SetRegister(pid, CR, &(((GPR *)data)->cr));
+  } else if (req == PTRACE_GETFPREGS) {
+    GetFPRegister(pid, FPR0, &(((FPR *)data)->f0));
+    GetFPRegister(pid, FPR1, &(((FPR *)data)->f1));
+    GetFPRegister(pid, FPR2, &(((FPR *)data)->f2));
+    GetFPRegister(pid, FPR3, &(((FPR *)data)->f3));
+    GetFPRegister(pid, FPR4, &(((FPR *)data)->f4));
+    GetFPRegister(pid, FPR5, &(((FPR *)data)->f5));
+    GetFPRegister(pid, FPR6, &(((FPR *)data)->f6));
+    GetFPRegister(pid, FPR7, &(((FPR *)data)->f7));
+    GetFPRegister(pid, FPR8, &(((FPR *)data)->f8));
+    GetFPRegister(pid, FPR9, &(((FPR *)data)->f9));
+    GetFPRegister(pid, FPR10, &(((FPR *)data)->f10));
+    GetFPRegister(pid, FPR11, &(((FPR *)data)->f11));
+    GetFPRegister(pid, FPR12, &(((FPR *)data)->f12));
+    GetFPRegister(pid, FPR13, &(((FPR *)data)->f13));
+    GetFPRegister(pid, FPR14, &(((FPR *)data)->f14));
+    GetFPRegister(pid, FPR15, &(((FPR *)data)->f15));
+    GetFPRegister(pid, FPR16, &(((FPR *)data)->f16));
+    GetFPRegister(pid, FPR17, &(((FPR *)data)->f17));
+    GetFPRegister(pid, FPR18, &(((FPR *)data)->f18));
+    GetFPRegister(pid, FPR19, &(((FPR *)data)->f19));
+    GetFPRegister(pid, FPR20, &(((FPR *)data)->f20));
+    GetFPRegister(pid, FPR21, &(((FPR *)data)->f21));
+    GetFPRegister(pid, FPR22, &(((FPR *)data)->f22));
+    GetFPRegister(pid, FPR23, &(((FPR *)data)->f23));
+    GetFPRegister(pid, FPR24, &(((FPR *)data)->f24));
+    GetFPRegister(pid, FPR25, &(((FPR *)data)->f25));
+    GetFPRegister(pid, FPR26, &(((FPR *)data)->f26));
+    GetFPRegister(pid, FPR27, &(((FPR *)data)->f27));
+    GetFPRegister(pid, FPR28, &(((FPR *)data)->f28));
+    GetFPRegister(pid, FPR29, &(((FPR *)data)->f29));
+    GetFPRegister(pid, FPR30, &(((FPR *)data)->f30));
+    GetFPRegister(pid, FPR31, &(((FPR *)data)->f31));
+    GetFPRegister(pid, FPSCR, &(((FPR *)data)->fpscr));
+  } else if (req == PTRACE_GETVRREGS && tid) {
+    GetVMRegister(tid, VR0, &(((VMX *)data)->vr0[0]));
+    GetVMRegister(tid, VR1, &(((VMX *)data)->vr1[0]));
+    GetVMRegister(tid, VR2, &(((VMX *)data)->vr2[0]));
+    GetVMRegister(tid, VR3, &(((VMX *)data)->vr3[0]));
+    GetVMRegister(tid, VR4, &(((VMX *)data)->vr4[0]));
+    GetVMRegister(tid, VR5, &(((VMX *)data)->vr5[0]));
+    GetVMRegister(tid, VR6, &(((VMX *)data)->vr6[0]));
+    GetVMRegister(tid, VR7, &(((VMX *)data)->vr7[0]));
+    GetVMRegister(tid, VR8, &(((VMX *)data)->vr8[0]));
+    GetVMRegister(tid, VR9, &(((VMX *)data)->vr9[0]));
+    GetVMRegister(tid, VR10, &(((VMX *)data)->vr10[0]));
+    GetVMRegister(tid, VR11, &(((VMX *)data)->vr11[0]));
+    GetVMRegister(tid, VR12, &(((VMX *)data)->vr12[0]));
+    GetVMRegister(tid, VR13, &(((VMX *)data)->vr13[0]));
+    GetVMRegister(tid, VR14, &(((VMX *)data)->vr14[0]));
+    GetVMRegister(tid, VR15, &(((VMX *)data)->vr15[0]));
+    GetVMRegister(tid, VR16, &(((VMX *)data)->vr16[0]));
+    GetVMRegister(tid, VR17, &(((VMX *)data)->vr17[0]));
+    GetVMRegister(tid, VR18, &(((VMX *)data)->vr18[0]));
+    GetVMRegister(tid, VR19, &(((VMX *)data)->vr19[0]));
+    GetVMRegister(tid, VR20, &(((VMX *)data)->vr20[0]));
+    GetVMRegister(tid, VR21, &(((VMX *)data)->vr21[0]));
+    GetVMRegister(tid, VR22, &(((VMX *)data)->vr22[0]));
+    GetVMRegister(tid, VR23, &(((VMX *)data)->vr23[0]));
+    GetVMRegister(tid, VR24, &(((VMX *)data)->vr24[0]));
+    GetVMRegister(tid, VR25, &(((VMX *)data)->vr25[0]));
+    GetVMRegister(tid, VR26, &(((VMX *)data)->vr26[0]));
+    GetVMRegister(tid, VR27, &(((VMX *)data)->vr27[0]));
+    GetVMRegister(tid, VR28, &(((VMX *)data)->vr28[0]));
+    GetVMRegister(tid, VR29, &(((VMX *)data)->vr29[0]));
+    GetVMRegister(tid, VR30, &(((VMX *)data)->vr30[0]));
+    GetVMRegister(tid, VR31, &(((VMX *)data)->vr31[0]));
+    GetVMRegister(tid, VSCR, &(((VMX *)data)->vscr[0]));
+    GetVMRegister(tid, VRSAVE, &(((VMX *)data)->vrsave));
+  } else if (req == PTRACE_GETVSRREGS && tid) {
+    GetVSRegister(tid, VSR0, &(((VSX *)data)->vs0[0]));
+    GetVSRegister(tid, VSR1, &(((VSX *)data)->vs1[0]));
+    GetVSRegister(tid, VSR2, &(((VSX *)data)->vs2[0]));
+    GetVSRegister(tid, VSR3, &(((VSX *)data)->vs3[0]));
+    GetVSRegister(tid, VSR4, &(((VSX *)data)->vs4[0]));
+    GetVSRegister(tid, VSR5, &(((VSX *)data)->vs5[0]));
+    GetVSRegister(tid, VSR6, &(((VSX *)data)->vs6[0]));
+    GetVSRegister(tid, VSR7, &(((VSX *)data)->vs7[0]));
+    GetVSRegister(tid, VSR8, &(((VSX *)data)->vs8[0]));
+    GetVSRegister(tid, VSR9, &(((VSX *)data)->vs9[0]));
+    GetVSRegister(tid, VSR10, &(((VSX *)data)->vs10[0]));
+    GetVSRegister(tid, VSR11, &(((VSX *)data)->vs11[0]));
+    GetVSRegister(tid, VSR12, &(((VSX *)data)->vs12[0]));
+    GetVSRegister(tid, VSR13, &(((VSX *)data)->vs13[0]));
+    GetVSRegister(tid, VSR14, &(((VSX *)data)->vs14[0]));
+    GetVSRegister(tid, VSR15, &(((VSX *)data)->vs15[0]));
+    GetVSRegister(tid, VSR16, &(((VSX *)data)->vs16[0]));
+    GetVSRegister(tid, VSR17, &(((VSX *)data)->vs17[0]));
+    GetVSRegister(tid, VSR18, &(((VSX *)data)->vs18[0]));
+    GetVSRegister(tid, VSR19, &(((VSX *)data)->vs19[0]));
+    GetVSRegister(tid, VSR20, &(((VSX *)data)->vs20[0]));
+    GetVSRegister(tid, VSR21, &(((VSX *)data)->vs21[0]));
+    GetVSRegister(tid, VSR22, &(((VSX *)data)->vs22[0]));
+    GetVSRegister(tid, VSR23, &(((VSX *)data)->vs23[0]));
+    GetVSRegister(tid, VSR24, &(((VSX *)data)->vs24[0]));
+    GetVSRegister(tid, VSR25, &(((VSX *)data)->vs25[0]));
+    GetVSRegister(tid, VSR26, &(((VSX *)data)->vs26[0]));
+    GetVSRegister(tid, VSR27, &(((VSX *)data)->vs27[0]));
+    GetVSRegister(tid, VSR28, &(((VSX *)data)->vs28[0]));
+    GetVSRegister(tid, VSR29, &(((VSX *)data)->vs29[0]));
+    GetVSRegister(tid, VSR30, &(((VSX *)data)->vs30[0]));
+    GetVSRegister(tid, VSR31, &(((VSX *)data)->vs31[0]));
+    GetVSRegister(tid, VSR32, &(((VSX *)data)->vs32[0]));
+    GetVSRegister(tid, VSR33, &(((VSX *)data)->vs33[0]));
+    GetVSRegister(tid, VSR34, &(((VSX *)data)->vs34[0]));
+    GetVSRegister(tid, VSR35, &(((VSX *)data)->vs35[0]));
+    GetVSRegister(tid, VSR36, &(((VSX *)data)->vs36[0]));
+    GetVSRegister(tid, VSR37, &(((VSX *)data)->vs37[0]));
+    GetVSRegister(tid, VSR38, &(((VSX *)data)->vs38[0]));
+    GetVSRegister(tid, VSR39, &(((VSX *)data)->vs39[0]));
+    GetVSRegister(tid, VSR40, &(((VSX *)data)->vs40[0]));
+    GetVSRegister(tid, VSR41, &(((VSX *)data)->vs41[0]));
+    GetVSRegister(tid, VSR42, &(((VSX *)data)->vs42[0]));
+    GetVSRegister(tid, VSR43, &(((VSX *)data)->vs43[0]));
+    GetVSRegister(tid, VSR44, &(((VSX *)data)->vs44[0]));
+    GetVSRegister(tid, VSR45, &(((VSX *)data)->vs45[0]));
+    GetVSRegister(tid, VSR46, &(((VSX *)data)->vs46[0]));
+    GetVSRegister(tid, VSR47, &(((VSX *)data)->vs47[0]));
+    GetVSRegister(tid, VSR48, &(((VSX *)data)->vs48[0]));
+    GetVSRegister(tid, VSR49, &(((VSX *)data)->vs49[0]));
+    GetVSRegister(tid, VSR50, &(((VSX *)data)->vs50[0]));
+    GetVSRegister(tid, VSR51, &(((VSX *)data)->vs51[0]));
+    GetVSRegister(tid, VSR52, &(((VSX *)data)->vs52[0]));
+    GetVSRegister(tid, VSR53, &(((VSX *)data)->vs53[0]));
+    GetVSRegister(tid, VSR54, &(((VSX *)data)->vs54[0]));
+    GetVSRegister(tid, VSR55, &(((VSX *)data)->vs55[0]));
+    GetVSRegister(tid, VSR56, &(((VSX *)data)->vs56[0]));
+    GetVSRegister(tid, VSR57, &(((VSX *)data)->vs57[0]));
+    GetVSRegister(tid, VSR58, &(((VSX *)data)->vs58[0]));
+    GetVSRegister(tid, VSR59, &(((VSX *)data)->vs59[0]));
+    GetVSRegister(tid, VSR60, &(((VSX *)data)->vs60[0]));
+    GetVSRegister(tid, VSR61, &(((VSX *)data)->vs61[0]));
+    GetVSRegister(tid, VSR62, &(((VSX *)data)->vs62[0]));
+    GetVSRegister(tid, VSR63, &(((VSX *)data)->vs63[0]));
   } else if (req < PT_COMMAND_MAX) {
     if (req == PT_CONTINUE) {
 #if 0
