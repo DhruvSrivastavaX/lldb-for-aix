@@ -510,12 +510,6 @@ FileSpec Host::GetModuleFileSpecForHostAddress(const void *host_addr) {
 
 #endif
 
-#if !defined(__linux__)
-bool Host::FindProcessThreads(const lldb::pid_t pid, TidMap &tids_to_attach) {
-  return false;
-}
-#endif
-
 struct ShellInfo {
   ShellInfo() : process_reaped(false) {}
 

@@ -346,61 +346,21 @@ llvm::Expected<std::vector<::pid_t>> NativeProcessAIX::Attach(::pid_t pid) {
   Log *log = GetLog(POSIXLog::Process);
 
   Status status;
-  // Use a map to keep track of the threads which we have attached/need to
-  // attach.
-  Host::TidMap tids_to_attach;
-  while (Host::FindProcessThreads(pid, tids_to_attach)) {
-    for (Host::TidMap::iterator it = tids_to_attach.begin();
-         it != tids_to_attach.end();) {
-      if (it->second == false) {
-        lldb::tid_t tid = it->first;
-
-        // Attach to the requested process.
-        // An attach will cause the thread to stop with a SIGSTOP.
-        if ((status = PtraceWrapper(PTRACE_ATTACH, tid)).Fail()) {
-          // No such thread. The thread may have exited. More error handling
-          // may be needed.
-          if (status.GetError() == ESRCH) {
-            it = tids_to_attach.erase(it);
-            continue;
-          }
-          return status.ToError();
-        }
-
-        //FIXME
-        int wpid =
-            llvm::sys::RetryAfterSignal(-1, ::waitpid, tid, nullptr, P_ALL/*__WALL*/);
-        // Need to use __WALL otherwise we receive an error with errno=ECHLD At
-        // this point we should have a thread stopped if waitpid succeeds.
-        if (wpid < 0) {
-          // No such thread. The thread may have exited. More error handling
-          // may be needed.
-          if (errno == ESRCH) {
-            it = tids_to_attach.erase(it);
-            continue;
-          }
-          return llvm::errorCodeToError(
-              std::error_code(errno, std::generic_category()));
-        }
-
-        LLDB_LOG(log, "adding tid = {0}", tid);
-        it->second = true;
-      }
-
-      // move the loop forward
-      ++it;
-    }
+  if ((status = PtraceWrapper(PT_ATTACH, pid)).Fail()) {
+    return status.ToError();
   }
 
-  size_t tid_count = tids_to_attach.size();
-  if (tid_count == 0)
-    return llvm::make_error<StringError>("No such process",
-                                         llvm::inconvertibleErrorCode());
+  int wpid =
+      llvm::sys::RetryAfterSignal(-1, ::waitpid, pid, nullptr, WNOHANG);
+  if (wpid <= 0) {
+    return llvm::errorCodeToError(
+        std::error_code(errno, std::generic_category()));
+  }
+
+  LLDB_LOG(log, "adding pid = {0}", pid);
 
   std::vector<::pid_t> tids;
-  tids.reserve(tid_count);
-  for (const auto &p : tids_to_attach)
-    tids.push_back(p.first);
+  tids.push_back(pid);
   return std::move(tids);
 }
 
@@ -1762,6 +1722,8 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
       ptrace64(req, pid, (long long)addr, (int)data_size, (int *)result);
     } else if (req == PT_WRITE_BLOCK) {
       ptrace64(req, pid, (long long)addr, (int)data_size, (int *)result);
+    } else if (req == PT_ATTACH) {
+      ptrace64(req, pid, 0, 0, nullptr);
     } else {
       assert(0 && "Not supported yet.");
     }

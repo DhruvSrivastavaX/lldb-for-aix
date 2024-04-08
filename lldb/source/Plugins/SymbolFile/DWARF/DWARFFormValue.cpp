@@ -511,8 +511,9 @@ DWARFFormValue::ReferencedUnitAndOffset() const {
   case DW_FORM_ref_udata:
     assert(m_unit); // Unit must be valid for DW_FORM_ref forms that are compile
                     // unit relative or we will get this wrong
-#if !defined(__AIX__)
     value += m_unit->GetOffset();
+#if defined(__AIX__)
+    value -= 8;
 #endif
     if (!m_unit->ContainsDIEOffset(value)) {
       m_unit->GetSymbolFileDWARF().GetObjectFile()->GetModule()->ReportError(

@@ -280,34 +280,6 @@ uint32_t Host::FindProcessesImpl(const ProcessInstanceInfoMatch &match_info,
   return process_infos.size();
 }
 
-bool Host::FindProcessThreads(const lldb::pid_t pid, TidMap &tids_to_attach) {
-  bool tids_changed = false;
-  static const char procdir[] = "/proc/";
-  static const char taskdir[] = "/task/";
-  std::string process_task_dir = procdir + llvm::to_string(pid) + taskdir;
-  DIR *dirproc = opendir(process_task_dir.c_str());
-
-  if (dirproc) {
-    struct dirent *direntry = nullptr;
-    while ((direntry = readdir(dirproc)) != nullptr) {
-      /*
-      if (direntry->d_type != DT_DIR || !IsDirNumeric(direntry->d_name))
-        continue;
-      */
-
-      lldb::tid_t tid = atoi(direntry->d_name);
-      TidMap::iterator it = tids_to_attach.find(tid);
-      if (it == tids_to_attach.end()) {
-        tids_to_attach.insert(TidPair(tid, false));
-        tids_changed = true;
-      }
-    }
-    closedir(dirproc);
-  }
-
-  return tids_changed;
-}
-
 bool Host::GetProcessInfo(lldb::pid_t pid, ProcessInstanceInfo &process_info) {
   ::pid_t tracerpid;
   ProcessState State;
