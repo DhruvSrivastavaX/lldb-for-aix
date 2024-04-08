@@ -484,9 +484,10 @@ void NativeProcessAIX::MonitorWatchpoint(NativeThreadAIX &thread,
 
 void NativeProcessAIX::MonitorSignal(const WaitStatus status,
                                        NativeThreadAIX &thread) {
+  int8_t signo = GetSignalInfo(status);
 #if 0
-  const int signo = info.si_signo;
   const bool is_from_llgs = info.si_pid == getpid();
+#endif
 
   Log *log = GetLog(POSIXLog::Process);
 
@@ -501,11 +502,11 @@ void NativeProcessAIX::MonitorSignal(const WaitStatus status,
 
   // Handle the signal.
   LLDB_LOG(log,
-           "received signal {0} ({1}) with code {2}, (siginfo pid = {3}, "
-           "waitpid pid = {4})",
-           Host::GetSignalAsCString(signo), signo, info.si_code,
-           thread.GetID());
+           "received signal {0} ({1}) with code NA, (siginfo pid = {2}, "
+           "waitpid pid = {3})",
+           Host::GetSignalAsCString(signo), signo, thread.GetID(), GetID());
 
+#if 0
   // Check for thread stop notification.
   // FIXME
   if (is_from_llgs /*&& (info.si_code == SI_TKILL)*/ && (signo == SIGSTOP)) {
@@ -555,21 +556,21 @@ void NativeProcessAIX::MonitorSignal(const WaitStatus status,
     // Done handling.
     return;
   }
+#endif
 
   // Check if debugger should stop at this signal or just ignore it and resume
   // the inferior.
-  if (m_signals_to_ignore.contains(signo)) {
+  if (m_signals_to_ignore.contains(signo) || signo == SIGCHLD) {
      ResumeThread(thread, thread.GetState(), signo);
      return;
   }
 
   // This thread is stopped.
   LLDB_LOG(log, "received signal {0}", Host::GetSignalAsCString(signo));
-  thread.SetStoppedBySignal(signo, &info);
+  thread.SetStoppedBySignal(signo);
 
   // Send a stop to the debugger after we get all other threads to stop.
   StopRunningThreads(thread.GetID());
-#endif
 }
 
 bool NativeProcessAIX::MonitorClone(NativeThreadAIX &parent,
@@ -1716,8 +1717,33 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     SetRegister(pid, CR, &(((GPR *)data)->cr));
   } else if (req < PT_COMMAND_MAX) {
     if (req == PT_CONTINUE) {
+#if 0
+      // Use PTT_CONTINUE
+      const char procdir[] = "/proc/";
+      const char lwpdir[] = "/lwp/";
+      std::string process_task_dir = procdir + std::to_string(pid) + lwpdir;
+      DIR *dirproc = opendir(process_task_dir.c_str());
+
+      struct ptthreads64 pts;
+      int idx = 0;
+      lldb::tid_t tid = 0;
+      if (dirproc) {
+	struct dirent *direntry = nullptr;
+	while ((direntry = readdir(dirproc)) != nullptr) {
+          if (strcmp(direntry->d_name, ".") == 0 || strcmp(direntry->d_name, "..") == 0) {
+            continue;
+          }
+          tid = atoi(direntry->d_name);
+          pts.th[idx++] = tid;
+	}
+	closedir(dirproc);
+      }
+      pts.th[idx] = 0;
+      ret = ptrace64(PTT_CONTINUE, tid, (long long)1, (int)(size_t)data, (int *)&pts);
+#else
       int buf;
-      ptrace64(req, pid, 1, 0, &buf);
+      ptrace64(req, pid, 1, (int)(size_t)data, &buf);
+#endif
     } else if (req == PT_READ_BLOCK) {
       ptrace64(req, pid, (long long)addr, (int)data_size, (int *)result);
     } else if (req == PT_WRITE_BLOCK) {

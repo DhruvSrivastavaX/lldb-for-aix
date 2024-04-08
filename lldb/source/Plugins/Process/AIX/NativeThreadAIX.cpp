@@ -271,7 +271,7 @@ Status NativeThreadAIX::SingleStep(uint32_t signo) {
 }
 
 void NativeThreadAIX::SetStoppedBySignal(uint32_t signo,
-                                           const siginfo_t *info) {
+                                         const siginfo_t *info) {
   Log *log = GetLog(LLDBLog::Thread);
   LLDB_LOGF(log, "NativeThreadAIX::%s called with signal 0x%02" PRIx32,
             __FUNCTION__, signo);
@@ -282,27 +282,12 @@ void NativeThreadAIX::SetStoppedBySignal(uint32_t signo,
   m_stop_info.details.signal.signo = signo;
 
   m_stop_description.clear();
-  if (info) {
-    switch (signo) {
-    case SIGSEGV:
-    case SIGBUS:
-    case SIGFPE:
-    case SIGILL:
-#if 0
-      // In case of MIPS64 target, SI_KERNEL is generated for invalid 64bit
-      // address.
-      const auto reason =
-          (info->si_signo == SIGBUS && info->si_code == SI_KERNEL)
-              ? CrashReason::eInvalidAddress
-              : GetCrashReason(*info);
-      m_stop_description = GetCrashReasonString(reason, *info);
-
-      if (reason == CrashReason::eSyncTagCheckFault) {
-        AnnotateSyncTagCheckFault(info);
-      }
-#endif
-      break;
-    }
+  switch (signo) {
+  case SIGSEGV:
+  case SIGBUS:
+  case SIGFPE:
+  case SIGILL:
+    break;
   }
 }
 
