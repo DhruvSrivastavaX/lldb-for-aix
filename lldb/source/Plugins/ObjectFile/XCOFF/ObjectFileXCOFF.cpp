@@ -66,6 +66,8 @@ void ObjectFileXCOFF::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
+bool UGLY_FLAG_FOR_AIX __attribute__((weak)) = false;
+
 ObjectFile *ObjectFileXCOFF::CreateInstance(const lldb::ModuleSP &module_sp,
                                           DataBufferSP data_sp,
                                           lldb::offset_t data_offset,
@@ -102,6 +104,7 @@ ObjectFile *ObjectFileXCOFF::CreateInstance(const lldb::ModuleSP &module_sp,
     //FIXME objfile leak
     return nullptr;
 
+  UGLY_FLAG_FOR_AIX = true;
   return objfile_up.release();
 }
 

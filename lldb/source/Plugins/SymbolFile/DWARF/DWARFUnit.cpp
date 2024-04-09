@@ -760,7 +760,9 @@ void DWARFUnit::ParseProducerInfo() {
   static const RegularExpression g_clang_version_regex(
       llvm::StringRef(R"(clang-([0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?))"));
   static const RegularExpression g_llvm_gcc_regex(
-      llvm::StringRef(R"(4\.[012]\.[01] )"));
+      llvm::StringRef(R"(4\.[012]\.[01] )"
+                      R"(\(Based on Apple Inc\. build [0-9]+\) )"
+                      R"(\(LLVM build [\.0-9]+\)$)"));
 
   llvm::SmallVector<llvm::StringRef, 3> matches;
   if (g_swiftlang_version_regex.Execute(producer, &matches)) {
@@ -922,6 +924,8 @@ const DWARFDebugAranges &DWARFUnit::GetFunctionAranges() {
   return *m_func_aranges_up;
 }
 
+bool UGLY_FLAG_FOR_AIX __attribute__((weak)) = false;
+
 llvm::Error DWARFUnitHeader::ApplyIndexEntry(
     const llvm::DWARFUnitIndex::Entry *index_entry) {
   // We should only be calling this function when the index entry is not set and
@@ -955,10 +959,10 @@ DWARFUnitHeader::extract(const DWARFDataExtractor &data,
                          DIERef::Section section, DWARFContext &context,
                          lldb::offset_t *offset_ptr) {
   DWARFUnitHeader header;
-#if defined(__AIX__)
-  // FIXME: hack to get version
-  *offset_ptr += 8;
-#endif
+  if (UGLY_FLAG_FOR_AIX) {
+    // FIXME: hack to get version
+    *offset_ptr += 8;
+  }
   header.m_offset = *offset_ptr;
   header.m_length = data.GetDWARFInitialLength(offset_ptr);
   header.m_version = data.GetU16(offset_ptr);
@@ -970,7 +974,11 @@ DWARFUnitHeader::extract(const DWARFDataExtractor &data,
         header.m_unit_type == llvm::dwarf::DW_UT_split_compile)
       header.m_dwo_id = data.GetU64(offset_ptr);
   } else {
-    header.m_abbr_offset = data.GetDWARFOffset(offset_ptr);
+    if (UGLY_FLAG_FOR_AIX) {
+      header.m_abbr_offset = data.GetMaxU64(offset_ptr, 8);
+    } else {
+      header.m_abbr_offset = data.GetDWARFOffset(offset_ptr);
+    }
     header.m_addr_size = data.GetU8(offset_ptr);
     header.m_unit_type =
         section == DIERef::Section::DebugTypes ? DW_UT_type : DW_UT_compile;
@@ -1073,11 +1081,10 @@ const lldb_private::DWARFDataExtractor &DWARFUnit::GetData() const {
 uint32_t DWARFUnit::GetHeaderByteSize() const {
   switch (m_header.GetUnitType()) {
   case llvm::dwarf::DW_UT_compile:
-#if defined (__AIX__)
-    return 11 + 4/*GetDWARFSizeOfOffset*/;
-#else
-    return GetVersion() < 5 ? 11 : 12;
-#endif
+    if (UGLY_FLAG_FOR_AIX)
+      return 11 + 4/*GetDWARFSizeOfOffset*/;
+    else
+      return GetVersion() < 5 ? 11 : 12;
   case llvm::dwarf::DW_UT_partial:
     return GetVersion() < 5 ? 11 : 12;
   case llvm::dwarf::DW_UT_skeleton:

@@ -28,13 +28,7 @@ public:
   dw_offset_t GetDWARFOffset(lldb::offset_t *offset_ptr) const;
 
   size_t GetDWARFSizeofInitialLength() const { return 4; }
-  size_t GetDWARFSizeOfOffset() const {
-#if defined(__AIX__)
-    return 8;
-#else
-    return 4;
-#endif
-  }
+  size_t GetDWARFSizeOfOffset() const { return 4; }
 
   llvm::DWARFDataExtractor GetAsLLVMDWARF() const;
   llvm::DataExtractor GetAsLLVM() const;
