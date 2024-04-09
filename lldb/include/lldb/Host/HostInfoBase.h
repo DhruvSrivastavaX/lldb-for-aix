@@ -149,6 +149,7 @@ public:
     return {};
   }
 
+  static bool ComputeSharedLibraryDirectory(FileSpec &file_spec);
   /// Returns the distribution id of the host
   ///
   /// This will be something like "ubuntu", "fedora", etc. on Linux.

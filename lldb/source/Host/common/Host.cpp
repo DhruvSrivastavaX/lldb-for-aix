@@ -337,6 +337,10 @@ bool Host::ResolveExecutableInBundle(FileSpec &file) { return false; }
 #ifndef _WIN32
 
 #if defined(__AIX__)
+
+#include <stdio.h>
+extern char **p_xargv;
+
 //FIXME!!: source code copied from https://github.com/netty/netty-tcnative/pull/522/files
 //Need to handle license issue.
 /*-
@@ -497,6 +501,16 @@ static int dladdr(const void *ptr, Dl_info *dl)
 FileSpec Host::GetModuleFileSpecForHostAddress(const void *host_addr) {
   FileSpec module_filespec;
 #if !defined(__ANDROID__)
+#ifdef __AIX__
+  if (host_addr == reinterpret_cast<void *>(HostInfoBase::ComputeSharedLibraryDirectory)) {
+    // FIXME: AIX dladdr return "lldb" for this case
+    if (p_xargv[0]) {
+      module_filespec.SetFile(p_xargv[0], FileSpec::Style::native);
+      FileSystem::Instance().Resolve(module_filespec);
+      return module_filespec;
+    }
+  }
+#endif
   Dl_info info;
   if (::dladdr(host_addr, &info)) {
     if (info.dli_fname) {
