@@ -39,6 +39,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/LLDBLog.h"
+#include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StringExtractor.h"
@@ -430,8 +431,17 @@ void NativeProcessAIX::MonitorSIGTRAP(const WaitStatus status,
   Log *log = GetLog(POSIXLog::Process);
   const bool is_main_thread = (thread.GetID() == GetID());
 
+  NativeRegisterContextAIX &reg_ctx = thread.GetRegisterContext();
+  const RegisterInfo *pc_info = reg_ctx.GetRegisterInfoByName("pc", 0);
+  RegisterValue pc_value;
+
   switch (status.status) {
   case SIGTRAP:
+    // Determine the source of SIGTRAP by checking current instruction:
+    // if that is trap instruction, then this is breakpoint, otherwise
+    // this is watchpoint.
+    reg_ctx.ReadRegister(pc_info, pc_value);
+
     MonitorBreakpoint(thread);
     break;
   default:
@@ -1919,6 +1929,8 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
       ptrace64(req, pid, (long long)addr, (int)data_size, (int *)result);
     } else if (req == PT_ATTACH) {
       ptrace64(req, pid, 0, 0, nullptr);
+    } else if (req == PT_WATCH) {
+      ptrace64(req, pid, (long long)addr, (int)data_size, nullptr);
     } else {
       assert(0 && "Not supported yet.");
     }

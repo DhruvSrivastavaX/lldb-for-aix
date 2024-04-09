@@ -535,24 +535,18 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
   switch (watch_flags) {
   case eWatchpointKindWrite:
     //FIXME
-    rw_mode = 0/*PPC_BREAKPOINT_TRIGGER_WRITE*/;
+    //rw_mode = 0/*PPC_BREAKPOINT_TRIGGER_WRITE*/;
     watch_flags = 2;
     break;
+  // Watchpoint read not supported
   case eWatchpointKindRead:
-    //FIXME
-    rw_mode = 0/*PPC_BREAKPOINT_TRIGGER_READ*/;
-    watch_flags = 1;
-    break;
   case (eWatchpointKindRead | eWatchpointKindWrite):
-    //FIXME
-    rw_mode = 0/*PPC_BREAKPOINT_TRIGGER_RW*/;
-    break;
   default:
     return LLDB_INVALID_INDEX32;
   }
 
   // Check if size has a valid hardware watchpoint length.
-  if (size != 1 && size != 2 && size != 4 && size != 8)
+  if (size != 8)
     return LLDB_INVALID_INDEX32;
 
   // Check 8-byte alignment for hardware watchpoint target address. Below is a
@@ -589,7 +583,7 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
   m_hwp_regs[wp_index].real_addr = real_addr;
   m_hwp_regs[wp_index].address = addr;
   m_hwp_regs[wp_index].control = control_value;
-  m_hwp_regs[wp_index].mode = rw_mode;
+  //m_hwp_regs[wp_index].mode = rw_mode;
 
   // PTRACE call to set corresponding watchpoint register.
   error = WriteHardwareDebugRegs();
@@ -722,50 +716,28 @@ Status NativeRegisterContextAIX_ppc64::ReadHardwareDebugInfo() {
     return Status();
   }
 
-  ::pid_t tid = m_thread.GetID();
-
-  Status error;
-#if 0
-  struct ppc_debug_info hwdebug_info;
-
-  error = NativeProcessAIX::PtraceWrapper(
-      PT_CLEAR/*PPC_PTRACE_GETHWDBGINFO*/, tid, 0, &hwdebug_info, sizeof(hwdebug_info));
-
-  if (error.Fail())
-    return error;
-
-  m_max_hwp_supported = hwdebug_info.num_data_bps;
-  m_max_hbp_supported = hwdebug_info.num_instruction_bps;
+  m_max_hwp_supported = 1;
+  m_max_hbp_supported = 0;
   m_refresh_hwdebug_info = false;
-#endif
-  return error;
+
+  return Status();
 }
 
 Status NativeRegisterContextAIX_ppc64::WriteHardwareDebugRegs() {
   Status error;
-#if 0
-  struct ppc_hw_breakpoint reg_state;
   long ret;
 
   for (uint32_t i = 0; i < m_max_hwp_supported; i++) {
-    reg_state.addr = m_hwp_regs[i].address;
-    reg_state.trigger_type = m_hwp_regs[i].mode;
-    reg_state.version = 1;
-    reg_state.addr_mode = 0/*PPC_BREAKPOINT_MODE_EXACT*/;
-    reg_state.condition_mode = 0/*PPC_BREAKPOINT_CONDITION_NONE*/;
-    reg_state.addr2 = 0;
-    reg_state.condition_value = 0;
+    if ((m_hwp_regs[i].control & 1) == 0)
+      continue;
 
-    error = NativeProcessAIX::PtraceWrapper(PT_CLEAR/*PPC_PTRACE_SETHWDEBUG*/,
-                                              m_thread.GetID(), 0, &reg_state,
-                                              sizeof(reg_state), &ret);
+    error = NativeProcessAIX::PtraceWrapper(PT_WATCH, m_thread.GetID(), (void *)m_hwp_regs[i].address, nullptr, 8, &ret);
 
     if (error.Fail())
       return error;
 
     m_hwp_regs[i].slot = ret;
   }
-#endif
   return error;
 }
 
