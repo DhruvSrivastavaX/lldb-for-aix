@@ -110,6 +110,10 @@ C++20 Feature Support
   templates (`P1814R0 <https://wg21.link/p1814r0>`_).
   (#GH54051).
 
+- We have sufficient confidence and experience with the concepts implementation
+  to update the ``__cpp_concepts`` macro to `202002L`. This enables
+  ``<expected>`` from libstdc++ to work correctly with Clang.
+
 C++23 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -348,11 +352,20 @@ Improvements to Clang's diagnostics
   (with initializer) entirely consist the condition expression of a if/while/for construct
   but are not actually used in the body of the if/while/for construct. Fixes #GH41447
 
+- Clang emits a diagnostic when a tentative array definition is assumed to have
+  a single element, but that diagnostic was never given a diagnostic group.
+  Added the ``-Wtentative-definition-array`` warning group to cover this.
+  Fixes #GH87766
+
 Improvements to Clang's time-trace
 ----------------------------------
 
 Bug Fixes in This Version
 -------------------------
+- Clang's ``-Wundefined-func-template`` no longer warns on pure virtual
+  functions.
+  (`#74016 <https://github.com/llvm/llvm-project/issues/74016>`_)
+
 - Fixed missing warnings when comparing mismatched enumeration constants
   in C (`#29217 <https://github.com/llvm/llvm-project/issues/29217>`).
 
