@@ -414,6 +414,7 @@ lldb::SymbolType ObjectFileXCOFF::MapSymbolType(llvm::object::SymbolRef::Type sy
 void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
   SectionList *sect_list = GetSectionList();
   const uint32_t num_syms = m_xcoff_header.nsyms;
+  uint32_t sidx = 0;
   if (num_syms > 0 && m_xcoff_header.symoff > 0) {
     const uint32_t symbol_size = XCOFF::SymbolTableEntrySize;
     const size_t symbol_data_size = num_syms * symbol_size;
@@ -440,25 +441,39 @@ void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
       symbol.type = symtab_data.GetU16(&offset);
       symbol.storage = symtab_data.GetU8(&offset);
       symbol.naux = symtab_data.GetU8(&offset);
-      symbols[i].GetMangled().SetValue(ConstString(symbol_name.c_str()));
+      if (symbol.storage == XCOFF::C_HIDEXT) {
+        if (symbol.naux > 0) {
+          i += symbol.naux;
+          offset += symbol.naux * symbol_size;
+        }
+        continue;
+      }
+      // Remove the dot prefix for demangle
+      if (symbol_name_str.size() > 1 && symbol_name_str.data()[0] == '.') {
+        symbols[sidx].GetMangled().SetValue(ConstString(symbol_name.c_str() + 1));
+      } else {
+        symbols[sidx].GetMangled().SetValue(ConstString(symbol_name.c_str()));
+      }
       if ((int16_t)symbol.sect >= 1) {
         Address symbol_addr(sect_list->GetSectionAtIndex((size_t)(symbol.sect - 1)),
                             (symbol.value - sect_list->GetSectionAtIndex((size_t)(symbol.sect - 1))->GetFileAddress()));
-        symbols[i].GetAddressRef() = symbol_addr;
+        symbols[sidx].GetAddressRef() = symbol_addr;
 
         Expected<llvm::object::SymbolRef::Type> sym_type_or_err = SI->getType();
         if (!sym_type_or_err) {
           consumeError(sym_type_or_err.takeError());
           return;
         }
-        symbols[i].SetType(MapSymbolType(sym_type_or_err.get()));
+        symbols[sidx].SetType(MapSymbolType(sym_type_or_err.get()));
       }
+      ++sidx;
 
       if (symbol.naux > 0) {
         i += symbol.naux;
         offset += symbol.naux * symbol_size;
       }
     }
+    lldb_symtab.Resize(sidx);
   }
 }
 
