@@ -1,3 +1,5 @@
+add_definitions("-D_ALL_SOURCE")
+
 add_lldb_library(lldbPluginProcessAIX
   NativeProcessAIX.cpp
   NativeRegisterContextAIX.cpp

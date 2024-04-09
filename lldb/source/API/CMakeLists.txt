@@ -20,7 +20,7 @@ if(LLDB_ENABLE_LUA)
   set(lldb_lua_wrapper ${lua_bindings_dir}/LLDBWrapLua.cpp)
 endif()
 
-add_lldb_library(liblldb SHARED ${option_framework}
+add_lldb_library(liblldb STATIC ${option_framework}
   SBAddress.cpp
   SBAttachInfo.cpp
   SBBlock.cpp
