@@ -94,15 +94,19 @@ TEST_F(TerminalTest, SetRaw) {
 TEST_F(TerminalTest, SetBaudRate) {
   struct termios terminfo;
 
+#if defined(B38400)
   ASSERT_THAT_ERROR(m_term.SetBaudRate(38400), llvm::Succeeded());
   ASSERT_EQ(tcgetattr(m_fd, &terminfo), 0);
   EXPECT_EQ(cfgetispeed(&terminfo), static_cast<speed_t>(B38400));
   EXPECT_EQ(cfgetospeed(&terminfo), static_cast<speed_t>(B38400));
+#endif
 
+#if defined(B115200)
   ASSERT_THAT_ERROR(m_term.SetBaudRate(115200), llvm::Succeeded());
   ASSERT_EQ(tcgetattr(m_fd, &terminfo), 0);
   EXPECT_EQ(cfgetispeed(&terminfo), static_cast<speed_t>(B115200));
   EXPECT_EQ(cfgetospeed(&terminfo), static_cast<speed_t>(B115200));
+#endif
 
   // uncommon value
 #if defined(B153600)
