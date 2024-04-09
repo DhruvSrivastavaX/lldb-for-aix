@@ -632,9 +632,7 @@ bool NativeProcessAIX::MonitorClone(NativeThreadAIX &parent,
 }
 
 bool NativeProcessAIX::SupportHardwareSingleStepping() const {
-  if (m_arch.GetMachine() == llvm::Triple::arm || m_arch.IsMIPS())
-    return false;
-  return true;
+  return false;
 }
 
 Status NativeProcessAIX::Resume(const ResumeActionList &resume_actions) {

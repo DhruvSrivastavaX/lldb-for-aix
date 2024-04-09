@@ -39,6 +39,12 @@ public:
       return true;
 
     case eInstructionTypePCModifying:
+#if defined(__AIX__)
+      return true;
+#else
+      return false;
+#endif
+
     case eInstructionTypeAll:
       return false;
     }
@@ -84,6 +90,9 @@ private:
   bool EmulateSTD(uint32_t opcode);
   bool EmulateOR(uint32_t opcode);
   bool EmulateADDI(uint32_t opcode);
+  bool EmulateBNE(uint32_t opcode);
+  bool EmulateB(uint32_t opcode);
+  bool EmulateBLR(uint32_t opcode);
 };
 
 } // namespace lldb_private

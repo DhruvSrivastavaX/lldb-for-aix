@@ -265,8 +265,7 @@ Status NativeThreadAIX::SingleStep(uint32_t signo) {
   // breakpoint on the next instruction has been setup in
   // NativeProcessAIX::Resume.
   return NativeProcessAIX::PtraceWrapper(
-      GetProcess().SupportHardwareSingleStepping() ? PT_CONTINUE /*PTRACE_SINGLESTEP*/
-                                                   : PT_CONTINUE,
+      GetProcess().SupportHardwareSingleStepping() ? PT_STEP : PT_CONTINUE,
       m_tid, nullptr, reinterpret_cast<void *>(data));
 }
 
