@@ -90,9 +90,13 @@ private:
   bool EmulateSTD(uint32_t opcode);
   bool EmulateOR(uint32_t opcode);
   bool EmulateADDI(uint32_t opcode);
-  bool EmulateBNE(uint32_t opcode);
   bool EmulateB(uint32_t opcode);
-  bool EmulateBLR(uint32_t opcode);
+  bool EmulateBA(uint32_t opcode);
+  bool EmulateBC(uint32_t opcode);
+  bool EmulateBCA(uint32_t opcode);
+  bool EmulateBCLR(uint32_t opcode);
+  bool EmulateBCCTR(uint32_t opcode);
+  bool EmulateBCTAR(uint32_t opcode);
 };
 
 } // namespace lldb_private
