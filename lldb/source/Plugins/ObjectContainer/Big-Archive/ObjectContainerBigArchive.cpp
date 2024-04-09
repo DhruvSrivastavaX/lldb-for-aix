@@ -153,24 +153,56 @@ size_t ObjectContainerBigArchive::Archive::ParseObjects() {
   if (str == llvm::object::BigArchiveMagic) {
     llvm::Error err = llvm::Error::success();
     llvm::object::BigArchive bigAr(llvm::MemoryBufferRef(toStringRef(m_data.GetData()), llvm::StringRef("")), err);
+    if (err)
+      return 0;
+
     for (const llvm::object::Archive::Child &child : bigAr.children(err)) {
+      if (err)
+        continue;
+      if (!child.getParent())
+        continue;
       Object obj;
       obj.Clear();
       // FIXME: check errors
-      obj.ar_name.SetCString(child.getName()->str().c_str());
-      obj.modification_time = (uint32_t)llvm::sys::toTimeT(*(child.getLastModified()));
-      obj.uid = (uint16_t)*(child.getUID());
-      obj.gid = (uint16_t)*(child.getGID());
-      obj.mode = (uint16_t)*(child.getAccessMode());
-      obj.size = (uint32_t)*(child.getRawSize());
+      llvm::Expected<llvm::StringRef> childNameOrErr = child.getName();
+      if (!childNameOrErr)
+        continue;
+      obj.ar_name.SetCString(childNameOrErr->str().c_str());
+      llvm::Expected<llvm::sys::TimePoint<std::chrono::seconds>> lastModifiedOrErr = child.getLastModified();
+      if (!lastModifiedOrErr)
+        continue;
+      obj.modification_time = (uint32_t)llvm::sys::toTimeT(*(lastModifiedOrErr));
+      llvm::Expected<unsigned> getUIDOrErr = child.getUID();
+      if (!getUIDOrErr)
+        continue;
+      obj.uid = (uint16_t)*getUIDOrErr;
+      llvm::Expected<unsigned> getGIDOrErr = child.getGID();
+      if (!getGIDOrErr)
+        continue;
+      obj.gid = (uint16_t)*getGIDOrErr;
+      llvm::Expected<llvm::sys::fs::perms> getAccessModeOrErr = child.getAccessMode();
+      if (!getAccessModeOrErr)
+        continue;
+      obj.mode = (uint16_t)*getAccessModeOrErr;
+      llvm::Expected<uint64_t> getRawSizeOrErr = child.getRawSize();
+      if (!getRawSizeOrErr)
+        continue;
+      obj.size = (uint32_t)*getRawSizeOrErr;
+
       obj.file_offset = (lldb::offset_t)child.getDataOffset();
-      obj.file_size = (lldb::offset_t)*(child.getSize());
+
+      llvm::Expected<uint64_t> getSizeOrErr = child.getSize();
+      if (!getSizeOrErr)
+        continue;
+      obj.file_size = (lldb::offset_t)*getSizeOrErr;
 
       size_t obj_idx = m_objects.size();
       m_objects.push_back(obj);
       // Insert all of the C strings out of order for now...
       m_object_name_to_index_map.Append(obj.ar_name, obj_idx);
     }
+    if (err)
+      return 0;
 
     // Now sort all of the object name pointers
     m_object_name_to_index_map.Sort();

@@ -727,8 +727,11 @@ EXAMPLES:
 
 int main(int argc, char const *argv[]) {
   // Editline uses for example iswprint which is dependent on LC_CTYPE.
+  // FIXME: this caused unexpected SIGTRAP on AIX
+#ifndef __AIX__
   std::setlocale(LC_ALL, "");
   std::setlocale(LC_CTYPE, "");
+#endif
 
   // Setup LLVM signal handlers and make sure we call llvm_shutdown() on
   // destruction.

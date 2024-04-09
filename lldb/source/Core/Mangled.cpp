@@ -159,12 +159,14 @@ static char *GetItaniumDemangledStr(const char *M) {
            "Expected demangled_size to return length including trailing null");
   }
 
+  /* FIXME: disable the massy log message
   if (Log *log = GetLog(LLDBLog::Demangle)) {
     if (demangled_cstr)
       LLDB_LOGF(log, "demangled itanium: %s -> \"%s\"", M, demangled_cstr);
     else
       LLDB_LOGF(log, "demangled itanium: %s -> error: failed to demangle", M);
   }
+  */
 
   return demangled_cstr;
 }

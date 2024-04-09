@@ -155,8 +155,10 @@ size_t ObjectFileXCOFF::GetModuleSpecifications(
 
 static uint32_t XCOFFHeaderSizeFromMagic(uint32_t magic) {
   switch (magic) {
+  /* TODO: 32bit not supported yet
   case XCOFF::XCOFF32:
     return sizeof(struct llvm::object::XCOFFFileHeader32);
+  */
 
   case XCOFF::XCOFF64:
     return sizeof(struct llvm::object::XCOFFFileHeader64);
@@ -167,7 +169,6 @@ static uint32_t XCOFFHeaderSizeFromMagic(uint32_t magic) {
   }
   return 0;
 }
-
 
 bool ObjectFileXCOFF::MagicBytesMatch(DataBufferSP &data_sp,
                                     lldb::addr_t data_offset,
@@ -430,7 +431,7 @@ void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
       symbol.offset = symtab_data.GetU32(&offset);
       Expected<StringRef> symbol_name_or_err = m_binary->getStringTableEntry(symbol.offset);
       if (!symbol_name_or_err) {
-        Error err = symbol_name_or_err.takeError();
+        consumeError(symbol_name_or_err.takeError());
         return;
       }
       StringRef symbol_name_str = symbol_name_or_err.get();
@@ -447,7 +448,7 @@ void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
 
         Expected<llvm::object::SymbolRef::Type> sym_type_or_err = SI->getType();
         if (!sym_type_or_err) {
-          Error err = sym_type_or_err.takeError();
+          consumeError(sym_type_or_err.takeError());
           return;
         }
         symbols[i].SetType(MapSymbolType(sym_type_or_err.get()));
@@ -585,7 +586,7 @@ uint32_t ObjectFileXCOFF::ParseDependentModules() {
 
   auto ImportFilesOrError = m_binary->getImportFileTable();
   if (!ImportFilesOrError) {
-    Error err = ImportFilesOrError.takeError();
+    consumeError(ImportFilesOrError.takeError());
     return 0;
   }
 
@@ -674,6 +675,7 @@ lldb_private::Address ObjectFileXCOFF::GetEntryPointAddress() {
   else
     m_entry_point_address.ResolveAddressUsingFileSections(vm_addr,
                                                           section_list);
+
   return m_entry_point_address;
 }
 
