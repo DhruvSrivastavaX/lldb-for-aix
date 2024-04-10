@@ -157,11 +157,11 @@ EmulateInstructionPPC64::GetOpcodeForInstruction(uint32_t opcode) {
        "bc BO,BI,TARGET"},
       {0xfc000002, 0x40000002, &EmulateInstructionPPC64::EmulateBCA,
        "bca BO,BI,TARGET"},
-      {0xfc00007e, 0x4c000020, &EmulateInstructionPPC64::EmulateBCLR,
+      {0xfc0007fe, 0x4c000020, &EmulateInstructionPPC64::EmulateBCLR,
        "bclr BO,BI,BH"},
-      {0xfc00007e, 0x4c000420, &EmulateInstructionPPC64::EmulateBCCTR,
+      {0xfc0007fe, 0x4c000420, &EmulateInstructionPPC64::EmulateBCCTR,
        "bcctr BO,BI,BH"},
-      {0xfc00007e, 0x4c000420, &EmulateInstructionPPC64::EmulateBCCTR,
+      {0xfc0007fe, 0x4c000460, &EmulateInstructionPPC64::EmulateBCTAR,
        "bcctr BO,BI,BH"},
       {0xfc00007e, 0x4c000460, &EmulateInstructionPPC64::EmulateBCTAR,
        "bctar BO,BI,BH"}};
@@ -421,9 +421,10 @@ bool EmulateInstructionPPC64::EmulateADDI(uint32_t opcode) {
 }
 
 bool EmulateInstructionPPC64::EmulateBC(uint32_t opcode) {
+  // FIXME:32bit M
+  uint32_t M = 0;
   uint32_t target32 = Bits32(opcode, 15, 2) << 2;
   uint64_t target = (uint64_t)target32 + ((target32 & 0x8000) ? 0xffffffffffff0000UL : 0);
-  uint32_t M = 0;
   uint32_t BO = Bits32(opcode, 25, 21);
   bool success;
   uint64_t ctr_value = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_ctr_ppc64le, 0, &success);
@@ -448,9 +449,10 @@ bool EmulateInstructionPPC64::EmulateBC(uint32_t opcode) {
 }
 
 bool EmulateInstructionPPC64::EmulateBCA(uint32_t opcode) {
+  // FIXME:32bit M
+  uint32_t M = 0;
   uint32_t target32 = Bits32(opcode, 15, 2) << 2;
   uint64_t target = (uint64_t)target32 + ((target32 & 0x8000) ? 0xffffffffffff0000UL : 0);
-  uint32_t M = 0;
   uint32_t BO = Bits32(opcode, 25, 21);
   bool success;
   uint64_t ctr_value = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_ctr_ppc64le, 0, &success);
@@ -475,6 +477,7 @@ bool EmulateInstructionPPC64::EmulateBCA(uint32_t opcode) {
 }
 
 bool EmulateInstructionPPC64::EmulateBCLR(uint32_t opcode) {
+  // FIXME:32bit M
   uint32_t M = 0;
   uint32_t BO = Bits32(opcode, 25, 21);
   bool success;
@@ -486,8 +489,12 @@ bool EmulateInstructionPPC64::EmulateBCLR(uint32_t opcode) {
   uint32_t BI = Bits32(opcode, 20, 16);
   bool cond_ok = (bool)(BO & (1U << 4)) | (bool)(((cr_value >> (63 - (BI + 32))) & 1U) == ((BO >> 3) & 1U));
 
-  uint64_t next_pc = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_lr_ppc64le, 0, &success);
-  next_pc &= ~(1UL << 2 - 1);
+  uint64_t pc_value = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_pc_ppc64le, 0, &success);
+  uint64_t next_pc = pc_value + 4;
+  if (ctr_ok & cond_ok) {
+    next_pc = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_lr_ppc64le, 0, &success);
+    next_pc &= ~((1UL << 2) - 1);
+  }
 
   Context ctx;
   ctx.type = eContextAdjustPC;
@@ -498,6 +505,7 @@ bool EmulateInstructionPPC64::EmulateBCLR(uint32_t opcode) {
 }
 
 bool EmulateInstructionPPC64::EmulateBCCTR(uint32_t opcode) {
+  // FIXME:32bit M
   uint32_t M = 0;
   uint32_t BO = Bits32(opcode, 25, 21);
   bool success;
@@ -505,13 +513,17 @@ bool EmulateInstructionPPC64::EmulateBCCTR(uint32_t opcode) {
   uint32_t BI = Bits32(opcode, 20, 16);
   bool cond_ok = (bool)(BO & (1U << 4)) | (bool)(((cr_value >> (63 - (BI + 32))) & 1U) == ((BO >> 3) & 1U));
 
-  uint64_t next_pc = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_ctr_ppc64le, 0, &success);
-  next_pc &= ~(1UL << 2 - 1);
+  Log *log = GetLog(LLDBLog::Unwind);
+  uint64_t pc_value = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_pc_ppc64le, 0, &success);
+  uint64_t next_pc = pc_value + 4;
+  if (cond_ok) {
+    next_pc = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_ctr_ppc64le, 0, &success);
+    next_pc &= ~((1UL << 2) - 1);
+  }
 
   Context ctx;
   ctx.type = eContextAdjustPC;
   WriteRegisterUnsigned(ctx, eRegisterKindLLDB, gpr_pc_ppc64le, next_pc);
-  Log *log = GetLog(LLDBLog::Unwind);
   LLDB_LOG(log, "EmulateBCCTR: success!");
   return true;
 }
