@@ -639,7 +639,7 @@ void sigwinch_handler(int signo) {
 }
 
 void sigint_handler(int signo) {
-#ifdef _WIN32 // Restore handler as it is not persistent on Windows
+#if defined(_WIN32) || defined(__AIX__) // Restore handler as it is not persistent on Windows
   signal(SIGINT, sigint_handler);
 #endif
   static std::atomic_flag g_interrupt_sent = ATOMIC_FLAG_INIT;

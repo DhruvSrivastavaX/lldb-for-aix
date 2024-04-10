@@ -157,3 +157,6 @@ endif()
 if(LLDB_BUILT_STANDALONE AND NOT LLVM_ENABLE_IDE)
   llvm_distribution_add_targets()
 endif()
+
+set_property(TARGET lldb APPEND PROPERTY INSTALL_RPATH
+  "/home/tingwa/local/lib")

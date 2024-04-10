@@ -27,6 +27,7 @@
 
 #include <sys/types.h>
 #include <sys/ptrace.h>
+#include <signal.h>
 
 #if 0
 #include <sys/syscall.h>
@@ -479,15 +480,12 @@ Status NativeThreadAIX::RequestStop() {
 
   Status err;
   errno = 0;
-#if 0
-  if (::tgkill(pid, tid, SIGSTOP) != 0) {
+  if (::kill(pid, SIGSTOP) != 0) {
     err.SetErrorToErrno();
     LLDB_LOGF(log,
-              "NativeThreadAIX::%s tgkill(%" PRIu64 ", %" PRIu64
-              ", SIGSTOP) failed: %s",
-              __FUNCTION__, pid, tid, err.AsCString());
+              "NativeThreadAIX::%s kill(%" PRIu64 ", SIGSTOP) failed: %s",
+              __FUNCTION__, pid, err.AsCString());
   }
-#endif
   return err;
 }
 
