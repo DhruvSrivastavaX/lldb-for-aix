@@ -92,6 +92,7 @@ private:
   bool EmulateADDI(uint32_t opcode);
   bool EmulateB(uint32_t opcode);
   bool EmulateBA(uint32_t opcode);
+  bool EmulateBLA(uint32_t opcode);
   bool EmulateBC(uint32_t opcode);
   bool EmulateBCA(uint32_t opcode);
   bool EmulateBCLR(uint32_t opcode);

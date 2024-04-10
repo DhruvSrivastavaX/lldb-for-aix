@@ -153,6 +153,8 @@ EmulateInstructionPPC64::GetOpcodeForInstruction(uint32_t opcode) {
        "b TARGET"},
       {0xfc000003, 0x48000002, &EmulateInstructionPPC64::EmulateBA,
        "ba TARGET"},
+      {0xfc000003, 0x48000003, &EmulateInstructionPPC64::EmulateBLA,
+       "bla TARGET"},
       {0xfc000002, 0x40000000, &EmulateInstructionPPC64::EmulateBC,
        "bc BO,BI,TARGET"},
       {0xfc000002, 0x40000002, &EmulateInstructionPPC64::EmulateBCA,
@@ -519,6 +521,10 @@ bool EmulateInstructionPPC64::EmulateBCCTR(uint32_t opcode) {
   if (cond_ok) {
     next_pc = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_ctr_ppc64le, 0, &success);
     next_pc &= ~((1UL << 2) - 1);
+    if (next_pc < 0x4000000) {
+      LLDB_LOGF(log, "EmulateBCCTR: next address %lx out of range, emulate by goto LR!");
+      next_pc = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_lr_ppc64le, 0, &success);
+    }
   }
 
   Context ctx;
@@ -553,6 +559,27 @@ bool EmulateInstructionPPC64::EmulateB(uint32_t opcode) {
 
 bool EmulateInstructionPPC64::EmulateBA(uint32_t opcode) {
   Log *log = GetLog(LLDBLog::Unwind);
-  LLDB_LOG(log, "EmulateBA: not supported!");
-  return false;
+
+  bool success;
+  uint64_t next_pc = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_lr_ppc64le, 0, &success);
+
+  Context ctx;
+  ctx.type = eContextAdjustPC;
+  WriteRegisterUnsigned(ctx, eRegisterKindLLDB, gpr_pc_ppc64le, next_pc);
+  LLDB_LOG(log, "EmulateBA: emulate by branch to lr!");
+  return true;
+}
+
+bool EmulateInstructionPPC64::EmulateBLA(uint32_t opcode) {
+  Log *log = GetLog(LLDBLog::Unwind);
+
+  bool success;
+  uint64_t pc_value = ReadRegisterUnsigned(eRegisterKindLLDB, gpr_pc_ppc64le, 0, &success);
+  uint64_t next_pc = pc_value + 4;
+
+  Context ctx;
+  ctx.type = eContextAdjustPC;
+  WriteRegisterUnsigned(ctx, eRegisterKindLLDB, gpr_pc_ppc64le, next_pc);
+  LLDB_LOG(log, "EmulateBLA: emulate by branch to lr!");
+  return true;
 }
