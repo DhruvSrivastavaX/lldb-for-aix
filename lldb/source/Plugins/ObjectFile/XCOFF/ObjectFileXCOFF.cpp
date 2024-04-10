@@ -444,7 +444,7 @@ void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
       symbol.type = symtab_data.GetU16(&offset);
       symbol.storage = symtab_data.GetU8(&offset);
       symbol.naux = symtab_data.GetU8(&offset);
-      if (symbol.storage == XCOFF::C_HIDEXT) {
+      if (symbol.storage == XCOFF::C_HIDEXT && strcmp(symbol_name.c_str(), "TOC") != 0) {
         if (symbol.naux > 0) {
           i += symbol.naux;
           offset += symbol.naux * symbol_size;

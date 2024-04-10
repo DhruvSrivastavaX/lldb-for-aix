@@ -1931,6 +1931,8 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
       ptrace64(req, pid, 0, 0, nullptr);
     } else if (req == PT_WATCH) {
       ptrace64(req, pid, (long long)addr, (int)data_size, nullptr);
+    } else if (req == PT_DETACH) {
+      ptrace64(req, pid, 0, 0, nullptr);
     } else {
       assert(0 && "Not supported yet.");
     }
