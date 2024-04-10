@@ -197,6 +197,17 @@ protected:
     uint8_t naux;
   } xcoff_symbol_t;
 
+  typedef struct xcoff_sym_csect_aux_entry {
+    uint32_t section_or_len_low_byte;
+    uint32_t parameter_hash_index;
+    uint16_t type_check_sect_num;
+    uint8_t symbol_alignment_and_type;
+    uint8_t storage_mapping_class;
+    uint32_t section_or_len_high_byte;
+    uint8_t pad;
+    uint8_t aux_type;
+  } xcoff_sym_csect_aux_entry_t;
+
   static bool ParseXCOFFHeader(lldb_private::DataExtractor &data,
                               lldb::offset_t *offset_ptr,
                               xcoff_header_t &xcoff_header);

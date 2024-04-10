@@ -444,12 +444,34 @@ void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
       symbol.type = symtab_data.GetU16(&offset);
       symbol.storage = symtab_data.GetU8(&offset);
       symbol.naux = symtab_data.GetU8(&offset);
+      // Allow C_HIDEXT TOC symbol, and check others.
       if (symbol.storage == XCOFF::C_HIDEXT && strcmp(symbol_name.c_str(), "TOC") != 0) {
-        if (symbol.naux > 0) {
+        if (symbol.naux == 0)
+          continue;
+        if (symbol.naux > 1) {
           i += symbol.naux;
           offset += symbol.naux * symbol_size;
+          continue;
         }
-        continue;
+        /* Allow XCOFF::C_HIDEXT with following SMC and AT:
+          StorageMappingClass: XMC_PR (0x0)
+          Auxiliary Type: AUX_CSECT (0xFB)
+        */
+        xcoff_sym_csect_aux_entry_t symbol_aux;
+        symbol_aux.section_or_len_low_byte = symtab_data.GetU32(&offset);
+        symbol_aux.parameter_hash_index = symtab_data.GetU32(&offset);
+        symbol_aux.type_check_sect_num = symtab_data.GetU16(&offset);
+        symbol_aux.symbol_alignment_and_type = symtab_data.GetU8(&offset);
+        symbol_aux.storage_mapping_class = symtab_data.GetU8(&offset);
+        symbol_aux.section_or_len_high_byte = symtab_data.GetU32(&offset);
+        symbol_aux.pad = symtab_data.GetU8(&offset);
+        symbol_aux.aux_type = symtab_data.GetU8(&offset);
+        offset -= symbol.naux * symbol_size;
+        if (symbol_aux.storage_mapping_class != XCOFF::XMC_PR || symbol_aux.aux_type != XCOFF::AUX_CSECT) {
+          i += symbol.naux;
+          offset += symbol.naux * symbol_size;
+          continue;
+        }
       }
       // Remove the dot prefix for demangle
       if (symbol_name_str.size() > 1 && symbol_name_str.data()[0] == '.') {
