@@ -2940,13 +2940,6 @@ public:
                                       QualType NewT, QualType OldT);
   void CheckMain(FunctionDecl *FD, const DeclSpec &D);
   void CheckMSVCRTEntryPoint(FunctionDecl *FD);
-  void ActOnHLSLTopLevelFunction(FunctionDecl *FD);
-  void CheckHLSLEntryPoint(FunctionDecl *FD);
-  void CheckHLSLSemanticAnnotation(FunctionDecl *EntryPoint, const Decl *Param,
-                                   const HLSLAnnotationAttr *AnnotationAttr);
-  void DiagnoseHLSLAttrStageMismatch(
-      const Attr *A, HLSLShaderAttr::ShaderType Stage,
-      std::initializer_list<HLSLShaderAttr::ShaderType> AllowedStages);
   Attr *getImplicitCodeSegOrSectionAttrForFunction(const FunctionDecl *FD,
                                                    bool IsDefinition);
   void CheckFunctionOrTemplateParamDeclarator(Scope *S, Declarator &D);
@@ -3708,14 +3701,6 @@ public:
                           StringRef UuidAsWritten, MSGuidDecl *GuidDecl);
 
   BTFDeclTagAttr *mergeBTFDeclTagAttr(Decl *D, const BTFDeclTagAttr &AL);
-  HLSLNumThreadsAttr *mergeHLSLNumThreadsAttr(Decl *D,
-                                              const AttributeCommonInfo &AL,
-                                              int X, int Y, int Z);
-  HLSLShaderAttr *mergeHLSLShaderAttr(Decl *D, const AttributeCommonInfo &AL,
-                                      HLSLShaderAttr::ShaderType ShaderType);
-  HLSLParamModifierAttr *
-  mergeHLSLParamModifierAttr(Decl *D, const AttributeCommonInfo &AL,
-                             HLSLParamModifierAttr::Spelling Spelling);
 
   WebAssemblyImportNameAttr *
   mergeImportNameAttr(Decl *D, const WebAssemblyImportNameAttr &AL);
@@ -5447,7 +5432,8 @@ public:
 
   ExprResult BuildDeclarationNameExpr(const CXXScopeSpec &SS, LookupResult &R,
                                       bool NeedsADL,
-                                      bool AcceptInvalidDecl = false);
+                                      bool AcceptInvalidDecl = false,
+                                      bool NeedUnresolved = false);
   ExprResult BuildDeclarationNameExpr(
       const CXXScopeSpec &SS, const DeclarationNameInfo &NameInfo, NamedDecl *D,
       NamedDecl *FoundD = nullptr,
@@ -6590,7 +6576,10 @@ public:
                             SourceLocation RParenLoc);
 
   //// ActOnCXXThis -  Parse 'this' pointer.
-  ExprResult ActOnCXXThis(SourceLocation loc);
+  ExprResult ActOnCXXThis(SourceLocation Loc);
+
+  /// Check whether the type of 'this' is valid in the current context.
+  bool CheckCXXThisType(SourceLocation Loc, QualType Type);
 
   /// Build a CXXThisExpr and mark it referenced in the current context.
   Expr *BuildCXXThisExpr(SourceLocation Loc, QualType Type, bool IsImplicit);
@@ -7013,10 +7002,14 @@ private:
   ///@{
 
 public:
+  /// Check whether an expression might be an implicit class member access.
+  bool isPotentialImplicitMemberAccess(const CXXScopeSpec &SS, LookupResult &R,
+                                       bool IsAddressOfOperand);
+
   ExprResult BuildPossibleImplicitMemberExpr(
       const CXXScopeSpec &SS, SourceLocation TemplateKWLoc, LookupResult &R,
-      const TemplateArgumentListInfo *TemplateArgs, const Scope *S,
-      UnresolvedLookupExpr *AsULE = nullptr);
+      const TemplateArgumentListInfo *TemplateArgs, const Scope *S);
+
   ExprResult
   BuildImplicitMemberExpr(const CXXScopeSpec &SS, SourceLocation TemplateKWLoc,
                           LookupResult &R,
@@ -9064,7 +9057,7 @@ public:
                                            Expr *DefaultArg);
   NamedDecl *ActOnTemplateTemplateParameter(
       Scope *S, SourceLocation TmpLoc, TemplateParameterList *Params,
-      SourceLocation EllipsisLoc, IdentifierInfo *ParamName,
+      bool Typename, SourceLocation EllipsisLoc, IdentifierInfo *ParamName,
       SourceLocation ParamNameLoc, unsigned Depth, unsigned Position,
       SourceLocation EqualLoc, ParsedTemplateArgument DefaultArg);
 
