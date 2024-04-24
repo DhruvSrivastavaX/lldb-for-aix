@@ -1418,10 +1418,8 @@ void SelectionDAG::clear() {
   TargetExternalSymbols.clear();
   MCSymbols.clear();
   SDEI.clear();
-  std::fill(CondCodeNodes.begin(), CondCodeNodes.end(),
-            static_cast<CondCodeSDNode*>(nullptr));
-  std::fill(ValueTypeNodes.begin(), ValueTypeNodes.end(),
-            static_cast<SDNode*>(nullptr));
+  std::fill(CondCodeNodes.begin(), CondCodeNodes.end(), nullptr);
+  std::fill(ValueTypeNodes.begin(), ValueTypeNodes.end(), nullptr);
 
   EntryNode.UseList = nullptr;
   InsertNode(&EntryNode);
@@ -5399,9 +5397,6 @@ bool SelectionDAG::isKnownNeverZero(SDValue Op, unsigned Depth) const {
     if (Op1.isNonZero() && Op0.isNonZero())
       return true;
 
-    if (KnownBits::smax(Op0, Op1).isNonZero())
-      return true;
-
     return isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
            isKnownNeverZero(Op.getOperand(0), Depth + 1);
   }
@@ -5415,9 +5410,6 @@ bool SelectionDAG::isKnownNeverZero(SDValue Op, unsigned Depth) const {
       return true;
 
     if (Op1.isNonZero() && Op0.isNonZero())
-      return true;
-
-    if (KnownBits::smin(Op0, Op1).isNonZero())
       return true;
 
     return isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
@@ -12952,7 +12944,7 @@ void SelectionDAG::copyExtraInfo(SDNode *From, SDNode *To) {
   // Use of operator[] on the DenseMap may cause an insertion, which invalidates
   // the iterator, hence the need to make a copy to prevent a use-after-free.
   NodeExtraInfo NEI = I->second;
-  if (LLVM_LIKELY(!NEI.PCSections)) {
+  if (LLVM_LIKELY(!NEI.PCSections) && LLVM_LIKELY(!NEI.MMRA)) {
     // No deep copy required for the types of extra info set.
     //
     // FIXME: Investigate if other types of extra info also need deep copy. This
