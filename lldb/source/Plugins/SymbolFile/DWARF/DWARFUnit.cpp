@@ -924,7 +924,7 @@ const DWARFDebugAranges &DWARFUnit::GetFunctionAranges() {
   return *m_func_aranges_up;
 }
 
-/* TODO: Removed conflicting code due to merge conflicts
+/* AIX-NOTE - TODO: Removed conflicting code due to merge conflicts
  * Refer Patches: 27,28,29,30,35 and 76 
  * and modify the code accordingly. */
 
