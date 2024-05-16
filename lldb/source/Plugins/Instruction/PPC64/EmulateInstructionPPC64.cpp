@@ -147,8 +147,8 @@ EmulateInstructionPPC64::GetOpcodeForInstruction(uint32_t opcode) {
        "addi RT, RA, SI"},
       {0xfc000003, 0xe8000000, &EmulateInstructionPPC64::EmulateLD,
        "ld RT, DS(RA)"},
-      {0xffff0003, 0x40820000, &EmulateInstructionPPC64::EmulateBNE,
-       "bne TARGET"},
+      /*{0xffff0003, 0x40820000, &EmulateInstructionPPC64::EmulateBNE,
+       "bne TARGET"},*/
       {0xfc000003, 0x48000000, &EmulateInstructionPPC64::EmulateB,
        "b TARGET"},
       {0xfc000003, 0x48000002, &EmulateInstructionPPC64::EmulateBA,

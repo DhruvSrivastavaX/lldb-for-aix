@@ -22,7 +22,8 @@
 #include <sys/ldr.h>
 #endif
 
-#include "llvm/ADT/Triple.h"
+/*#include "llvm/ADT/Triple.h"
+*/
 
 using namespace lldb;
 using namespace lldb_private;

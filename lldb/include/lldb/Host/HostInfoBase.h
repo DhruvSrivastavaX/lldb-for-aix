@@ -159,7 +159,6 @@ public:
   static llvm::StringRef GetDistributionId() { return llvm::StringRef(); }
 
 protected:
-  static bool ComputeSharedLibraryDirectory(FileSpec &file_spec);
   static bool ComputeSupportExeDirectory(FileSpec &file_spec);
   static bool ComputeProcessTempFileDirectory(FileSpec &file_spec);
   static bool ComputeGlobalTempFileDirectory(FileSpec &file_spec);

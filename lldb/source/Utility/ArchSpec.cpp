@@ -467,7 +467,7 @@ static const ArchDefinitionEntry g_xcoff_arch_entries[] = {
 
 static const ArchDefinition g_xcoff_arch_def = {
     eArchTypeXCOFF,
-    llvm::array_lengthof(g_xcoff_arch_entries),
+    std::size(g_xcoff_arch_entries),
     g_xcoff_arch_entries,
     "xcoff",
 };

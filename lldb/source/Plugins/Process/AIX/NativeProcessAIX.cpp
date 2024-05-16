@@ -1553,7 +1553,7 @@ void NativeProcessAIX::ThreadWasCreated(NativeThreadAIX &thread) {
   }
 }
 
-static llvm::Optional<WaitStatus> HandlePid(::pid_t pid) {
+static std::optional<WaitStatus> HandlePid(::pid_t pid) {
   Log *log = GetLog(POSIXLog::Process);
 
   int status;
@@ -1561,13 +1561,13 @@ static llvm::Optional<WaitStatus> HandlePid(::pid_t pid) {
       -1, ::waitpid, pid, &status, WNOHANG);
 
   if (wait_pid == 0)
-    return llvm::None;
+    return std::nullopt;
 
   if (wait_pid == -1) {
     Status error(errno, eErrorTypePOSIX);
     LLDB_LOG(log, "waitpid({0}, &status, _) failed: {1}", pid,
              error);
-    return llvm::None;
+    return std::nullopt;
   }
 
   assert(wait_pid == pid);
