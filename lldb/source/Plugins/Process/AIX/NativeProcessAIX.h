@@ -19,6 +19,7 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/lldb-types.h"
 #include "lldb/Host/aix/Support.h"
+#include "llvm/ADT/SmallPtrSet.h"
 
 #include "NativeThreadAIX.h"
 #include "lldb/Host/common/NativeProcessProtocol.h"
@@ -39,17 +40,38 @@ namespace process_aix {
 class NativeProcessAIX : public NativeProcessProtocol,
                            private NativeProcessSoftwareSingleStep {
 public:
-  class Factory : public NativeProcessProtocol::Factory {
+  class Manager : public NativeProcessProtocol::Manager {
   public:
-    llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
-    Launch(ProcessLaunchInfo &launch_info, NativeDelegate &native_delegate,
-           MainLoop &mainloop) const override;
+    Manager(MainLoop &mainloop);
 
     llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
-    Attach(lldb::pid_t pid, NativeDelegate &native_delegate,
-           MainLoop &mainloop) const override;
+    Launch(ProcessLaunchInfo &launch_info,
+           NativeDelegate &native_delegate) override;
+
+    llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
+    Attach(lldb::pid_t pid, NativeDelegate &native_delegate) override;
 
     Extension GetSupportedExtensions() const override;
+
+    void AddProcess(NativeProcessAIX &process) {
+      m_processes.insert(&process);
+    }
+
+    void RemoveProcess(NativeProcessAIX &process) {
+      m_processes.erase(&process);
+    }
+    // Collect an event for the given tid, waiting for it if necessary.
+    void CollectThread(::pid_t tid);
+
+  private:
+    MainLoop::SignalHandleUP m_sigchld_handle;
+
+    llvm::SmallPtrSet<NativeProcessAIX *, 2> m_processes;
+
+    // Threads (events) which haven't been claimed by any process.
+    llvm::DenseSet<::pid_t> m_unowned_threads;
+
+    void SigchldHandler();
   };
 
   // NativeProcessProtocol Interface
@@ -209,7 +231,9 @@ private:
   /// stopping for threads being destroyed.
   Status NotifyTracersOfThreadDestroyed(lldb::tid_t tid);
 
-  void NotifyTracersProcessStateChanged(lldb::StateType state) override;
+  void NotifyTracersProcessWillResume() override;
+
+  void NotifyTracersProcessDidStop() override;
 
   /// Writes the raw event message code (vis-a-vis PTRACE_GETEVENTMSG)
   /// corresponding to the given thread ID to the memory pointed to by @p
@@ -241,6 +265,9 @@ private:
   void SigchldHandler();
 
   Status PopulateMemoryRegionCache();
+
+  /// Manages Intel PT process and thread traces.
+  IntelPTCollector m_intel_pt_collector;
 
   // Handle a clone()-like event.
   bool MonitorClone(NativeThreadAIX &parent, lldb::pid_t child_pid,

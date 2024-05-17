@@ -423,7 +423,7 @@ bool ObjectContainerBigArchive::ParseHeader() {
   return m_archive_sp.get() != nullptr;
 }
 
-void ObjectContainerBigArchive::Dump(Stream *s) const {
+void ObjectContainerBigArchive::Object::Dump(Stream *s) const {
   s->Printf("%p: ", static_cast<const void *>(this));
   s->Indent();
   const size_t num_archs = GetNumArchitectures();

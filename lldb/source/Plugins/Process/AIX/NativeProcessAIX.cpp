@@ -224,9 +224,8 @@ static Status EnsureFDFlags(int fd, int flags) {
 // Public Static Methods
 
 llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
-NativeProcessAIX::Factory::Launch(ProcessLaunchInfo &launch_info,
-                                    NativeDelegate &native_delegate,
-                                    MainLoop &mainloop) const {
+NativeProcessAIX::Manager::Launch(ProcessLaunchInfo &launch_info,
+                                    NativeDelegate &native_delegate) {
   Log *log = GetLog(POSIXLog::Process);
 
   MaybeLogLaunchInfo(launch_info);
@@ -266,13 +265,12 @@ NativeProcessAIX::Factory::Launch(ProcessLaunchInfo &launch_info,
 
   return std::unique_ptr<NativeProcessAIX>(new NativeProcessAIX(
       pid, launch_info.GetPTY().ReleasePrimaryFileDescriptor(), native_delegate,
-      Info.GetArchitecture(), mainloop, {pid}));
+      Info.GetArchitecture(), *this, {pid}));
 }
 
 llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
-NativeProcessAIX::Factory::Attach(
-    lldb::pid_t pid, NativeProcessProtocol::NativeDelegate &native_delegate,
-    MainLoop &mainloop) const {
+NativeProcessAIX::Manager::Attach(
+    lldb::pid_t pid, NativeProcessProtocol::NativeDelegate &native_delegate) {
   Log *log = GetLog(POSIXLog::Process);
   LLDB_LOG(log, "pid = {0:x}", pid);
 
@@ -288,7 +286,7 @@ NativeProcessAIX::Factory::Attach(
     return tids_or.takeError();
 
   return std::unique_ptr<NativeProcessAIX>(new NativeProcessAIX(
-      pid, -1, native_delegate, Info.GetArchitecture(), mainloop, *tids_or));
+      pid, -1, native_delegate, Info.GetArchitecture(), *this, *tids_or));
 }
 
 lldb::addr_t NativeProcessAIX::GetSharedLibraryInfoAddress() {
@@ -297,7 +295,7 @@ lldb::addr_t NativeProcessAIX::GetSharedLibraryInfoAddress() {
 }
 
 NativeProcessAIX::Extension
-NativeProcessAIX::Factory::GetSupportedExtensions() const {
+NativeProcessAIX::Manager::GetSupportedExtensions() const {
   NativeProcessAIX::Extension supported =
       Extension::multiprocess | Extension::fork | Extension::vfork |
       Extension::pass_signals | Extension::auxv | Extension::libraries_svr4 |
@@ -648,6 +646,8 @@ bool NativeProcessAIX::SupportHardwareSingleStepping() const {
 Status NativeProcessAIX::Resume(const ResumeActionList &resume_actions) {
   Log *log = GetLog(POSIXLog::Process);
   LLDB_LOG(log, "pid {0}", GetID());
+
+  NotifyTracersProcessWillResume();
 
   bool software_single_step = !SupportHardwareSingleStepping();
 
@@ -1059,7 +1059,7 @@ NativeProcessAIX::Syscall(llvm::ArrayRef<uint64_t> args) {
 llvm::Expected<addr_t>
 NativeProcessAIX::AllocateMemory(size_t size, uint32_t permissions) {
 
-  llvm::Optional<NativeRegisterContextAIX::MmapData> mmap_data =
+  std::optional<NativeRegisterContextAIX::MmapData> mmap_data =
       GetCurrentThread()->GetRegisterContext().GetMmapData();
   if (!mmap_data)
     return llvm::make_error<UnimplementedError>();
@@ -1084,7 +1084,7 @@ NativeProcessAIX::AllocateMemory(size_t size, uint32_t permissions) {
 }
 
 llvm::Error NativeProcessAIX::DeallocateMemory(lldb::addr_t addr) {
-  llvm::Optional<NativeRegisterContextAIX::MmapData> mmap_data =
+  std::optional<NativeRegisterContextAIX::MmapData> mmap_data =
       GetCurrentThread()->GetRegisterContext().GetMmapData();
   if (!mmap_data)
     return llvm::make_error<UnimplementedError>();
@@ -1261,9 +1261,9 @@ NativeProcessAIX::GetSoftwareBreakpointTrapOpcode(size_t size_hint) {
   case llvm::Triple::arm:
     switch (size_hint) {
     case 2:
-      return llvm::makeArrayRef(g_thumb_opcode);
+      return llvm::ArrayRef(g_thumb_opcode);
     case 4:
-      return llvm::makeArrayRef(g_arm_opcode);
+      return llvm::ArrayRef(g_arm_opcode);
     default:
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Unrecognised trap opcode size hint!");
@@ -1364,8 +1364,12 @@ void NativeProcessAIX::StopTrackingThread(NativeThreadAIX &thread) {
   SignalIfAllThreadsStopped();
 }
 
-void NativeProcessAIX::NotifyTracersProcessStateChanged(
-    lldb::StateType state) {
+void NativeProcessAIX::NotifyTracersProcessDidStop() {
+  m_intel_pt_collector.ProcessDidStop();
+}
+
+void NativeProcessAIX::NotifyTracersProcessWillResume() {
+  m_intel_pt_collector.ProcessWillResume();
 }
 
 Status NativeProcessAIX::NotifyTracersOfNewThread(lldb::tid_t tid) {
@@ -1589,13 +1593,13 @@ void NativeProcessAIX::SigchldHandler() {
     if (thread_up->GetID() == GetID())
       checked_main_thread = true;
 
-    if (llvm::Optional<WaitStatus> status = HandlePid(thread_up->GetID()))
+    if (std::optional<WaitStatus> status = HandlePid(thread_up->GetID()))
       tid_events.try_emplace(thread_up->GetID(), *status);
   }
   // Check the main thread even when we're not tracking it as process exit
   // events are reported that way.
   if (!checked_main_thread) {
-    if (llvm::Optional<WaitStatus> status = HandlePid(GetID()))
+    if (std::optional<WaitStatus> status = HandlePid(GetID()))
       tid_events.try_emplace(GetID(), *status);
   }
 
@@ -1621,30 +1625,30 @@ void NativeProcessAIX::SigchldHandler() {
 static void GetRegister(lldb::pid_t pid, long long addr, void *buf) {
   uint64_t val = 0;
   ptrace64(PT_READ_GPR, pid, addr, 0, (int *)&val);
-  *(uint64_t *)buf = llvm::ByteSwap_64(val);
+  *(uint64_t *)buf = llvm::byteswap<uint64_t>(val);
 }
 
 static void SetRegister(lldb::pid_t pid, long long addr, void *buf) {
-  uint64_t val = llvm::ByteSwap_64(*(uint64_t *)buf);
+  uint64_t val = llvm::byteswap<uint64_t>(*(uint64_t *)buf);
   ptrace64(PT_WRITE_GPR, pid, addr, 0, (int *)&val);
 }
 
 static void GetFPRegister(lldb::pid_t pid, long long addr, void *buf) {
   uint64_t val = 0;
   ptrace64(PT_READ_FPR, pid, addr, 0, (int *)&val);
-  *(uint64_t *)buf = llvm::ByteSwap_64(val);
+  *(uint64_t *)buf = llvm::byteswap<uint64_t>(val);
 }
 
 static void GetVMRegister(lldb::tid_t tid, long long addr, void *buf) {
   uint64_t val = 0;
   ptrace64(PTT_READ_VEC, tid, addr, 0, (int *)&val);
-  //*(uint64_t *)buf = llvm::ByteSwap_64(val);
+  //*(uint64_t *)buf = llvm::byteswap<uint64_t>(val);
 }
 
 static void GetVSRegister(lldb::tid_t tid, long long addr, void *buf) {
   uint64_t val = 0;
   ptrace64(PTT_READ_VSX, tid, addr, 0, (int *)&val);
-  //*(uint64_t *)buf = llvm::ByteSwap_64(val);
+  //*(uint64_t *)buf = llvm::byteswap<uint64_t>(val);
 }
 
 // Wrapper for ptrace to catch errors and log calls. Note that ptrace sets
