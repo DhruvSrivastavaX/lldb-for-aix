@@ -2465,9 +2465,9 @@ NamedDecl *Sema::LazilyCreateBuiltin(IdentifierInfo *II, unsigned ID,
 /// entity if their types are the same.
 /// FIXME: This is notionally doing the same thing as ASTReaderDecl's
 /// isSameEntity.
-static void filterNonConflictingPreviousTypedefDecls(Sema &S,
-                                                     TypedefNameDecl *Decl,
-                                                     LookupResult &Previous) {
+static void
+filterNonConflictingPreviousTypedefDecls(Sema &S, const TypedefNameDecl *Decl,
+                                         LookupResult &Previous) {
   // This is only interesting when modules are enabled.
   if (!S.getLangOpts().Modules && !S.getLangOpts().ModulesLocalVisibility)
     return;
@@ -2504,9 +2504,9 @@ static void filterNonConflictingPreviousTypedefDecls(Sema &S,
   Filter.done();
 }
 
-bool Sema::isIncompatibleTypedef(TypeDecl *Old, TypedefNameDecl *New) {
+bool Sema::isIncompatibleTypedef(const TypeDecl *Old, TypedefNameDecl *New) {
   QualType OldType;
-  if (TypedefNameDecl *OldTypedef = dyn_cast<TypedefNameDecl>(Old))
+  if (const TypedefNameDecl *OldTypedef = dyn_cast<TypedefNameDecl>(Old))
     OldType = OldTypedef->getUnderlyingType();
   else
     OldType = Context.getTypeDeclType(Old);
@@ -2879,7 +2879,7 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
         D, *AA, AA->getPlatform(), AA->isImplicit(), AA->getIntroduced(),
         AA->getDeprecated(), AA->getObsoleted(), AA->getUnavailable(),
         AA->getMessage(), AA->getStrict(), AA->getReplacement(), AMK,
-        AA->getPriority());
+        AA->getPriority(), AA->getEnvironment());
   else if (const auto *VA = dyn_cast<VisibilityAttr>(Attr))
     NewAttr = S.mergeVisibilityAttr(D, *VA, VA->getVisibility());
   else if (const auto *VA = dyn_cast<TypeVisibilityAttr>(Attr))

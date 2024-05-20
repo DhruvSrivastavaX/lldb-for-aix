@@ -18,6 +18,7 @@
 #include "clang/Lex/CodeCompletionHandler.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/SemaCodeCompletion.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaOpenMP.h"
 #include "llvm/ADT/SmallVector.h"
@@ -151,6 +152,9 @@ class Parser : public CodeCompletionHandler {
 
   /// Identifier for "replacement".
   IdentifierInfo *Ident_replacement;
+
+  /// Identifier for "environment".
+  IdentifierInfo *Ident_environment;
 
   /// Identifiers used by the 'external_source_symbol' attribute.
   IdentifierInfo *Ident_language, *Ident_defined_in,
@@ -2997,7 +3001,8 @@ private:
 
   IdentifierInfo *TryParseCXX11AttributeIdentifier(
       SourceLocation &Loc,
-      Sema::AttributeCompletion Completion = Sema::AttributeCompletion::None,
+      SemaCodeCompletion::AttributeCompletion Completion =
+          SemaCodeCompletion::AttributeCompletion::None,
       const IdentifierInfo *EnclosingScope = nullptr);
 
   void MaybeParseHLSLAnnotations(Declarator &D,
