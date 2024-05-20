@@ -500,6 +500,8 @@ dw_addr_t DWARFFormValue::Address() const {
       &offset, index_size);
 }
 
+bool UGLY_FLAG_FOR_AIX __attribute__((weak)) = false;
+
 std::pair<DWARFUnit *, uint64_t>
 DWARFFormValue::ReferencedUnitAndOffset() const {
   uint64_t value = m_value.value.uval;

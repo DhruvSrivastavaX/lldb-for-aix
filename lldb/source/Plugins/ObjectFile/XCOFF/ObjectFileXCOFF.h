@@ -100,7 +100,7 @@ public:
 
   /// Return the contents of the .gnu_debuglink section, if the object file
   /// contains it.
-  llvm::Optional<lldb_private::FileSpec> GetDebugLink();
+  std::optional<lldb_private::FileSpec> GetDebugLink();
 
   uint32_t GetDependentModules(lldb_private::FileSpecList &files) override;
 
@@ -236,7 +236,7 @@ private:
   SectionHeaderColl m_sect_headers;
   std::unique_ptr<llvm::object::XCOFFObjectFile> m_binary;
   lldb_private::Address m_entry_point_address;
-  llvm::Optional<lldb_private::FileSpecList> m_deps_filespec;
+  std::optional<lldb_private::FileSpecList> m_deps_filespec;
   std::map<std::string, std::vector<std::string>> m_deps_base_members;
 };
 

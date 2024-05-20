@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <string.h>
 
-#include "lldb/Core/FileSpecList.h"
+#include "lldb/Utility/FileSpecList.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
