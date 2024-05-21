@@ -2828,6 +2828,7 @@ GDBRemoteCommunicationServerLLGS::Handle_qMemoryRegionInfo(
   return SendPacketNoLock(response.GetString());
 }
 
+GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerLLGS::Handle_Z(StringExtractorGDBRemote &packet) {
   // Ensure we have a process.
   if (!m_current_process ||

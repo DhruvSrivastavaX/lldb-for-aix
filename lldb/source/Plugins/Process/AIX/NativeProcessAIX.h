@@ -19,7 +19,6 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/lldb-types.h"
 #include "lldb/Host/aix/Support.h"
-#include "llvm/ADT/SmallPtrSet.h"
 
 #include "NativeThreadAIX.h"
 #include "lldb/Host/common/NativeProcessProtocol.h"
@@ -42,36 +41,15 @@ class NativeProcessAIX : public NativeProcessProtocol,
 public:
   class Manager : public NativeProcessProtocol::Manager {
   public:
-    Manager(MainLoop &mainloop);
+	Manager(MainLoop &mainloop);
 
     llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
-    Launch(ProcessLaunchInfo &launch_info,
-           NativeDelegate &native_delegate) override;
+    Launch(ProcessLaunchInfo &launch_info, NativeDelegate &native_delegate) override;
 
     llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
     Attach(lldb::pid_t pid, NativeDelegate &native_delegate) override;
 
     Extension GetSupportedExtensions() const override;
-
-    void AddProcess(NativeProcessAIX &process) {
-      m_processes.insert(&process);
-    }
-
-    void RemoveProcess(NativeProcessAIX &process) {
-      m_processes.erase(&process);
-    }
-    // Collect an event for the given tid, waiting for it if necessary.
-    void CollectThread(::pid_t tid);
-
-  private:
-    MainLoop::SignalHandleUP m_sigchld_handle;
-
-    llvm::SmallPtrSet<NativeProcessAIX *, 2> m_processes;
-
-    // Threads (events) which haven't been claimed by any process.
-    llvm::DenseSet<::pid_t> m_unowned_threads;
-
-    void SigchldHandler();
   };
 
   // NativeProcessProtocol Interface
@@ -184,7 +162,7 @@ private:
 
   // Private Instance Methods
   NativeProcessAIX(::pid_t pid, int terminal_fd, NativeDelegate &delegate,
-                     const ArchSpec &arch, MainLoop &mainloop,
+                     const ArchSpec &arch, Manager &manager,
                      llvm::ArrayRef<::pid_t> tids);
 
   // Returns a list of process threads that we have attached to.
@@ -234,7 +212,6 @@ private:
   void NotifyTracersProcessWillResume() override;
 
   void NotifyTracersProcessDidStop() override;
-
   /// Writes the raw event message code (vis-a-vis PTRACE_GETEVENTMSG)
   /// corresponding to the given thread ID to the memory pointed to by @p
   /// message.
@@ -265,9 +242,6 @@ private:
   void SigchldHandler();
 
   Status PopulateMemoryRegionCache();
-
-  /// Manages Intel PT process and thread traces.
-  IntelPTCollector m_intel_pt_collector;
 
   // Handle a clone()-like event.
   bool MonitorClone(NativeThreadAIX &parent, lldb::pid_t child_pid,

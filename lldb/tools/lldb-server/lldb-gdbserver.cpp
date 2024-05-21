@@ -73,7 +73,7 @@ typedef process_netbsd::NativeProcessNetBSD::Manager NativeProcessManager;
 #elif defined(_WIN32)
 typedef NativeProcessWindows::Manager NativeProcessManager;
 #elif defined(__AIX__)
-typedef process_aix::NativeProcessAIX::Factory NativeProcessFactory;
+typedef process_aix::NativeProcessAIX::Manager NativeProcessManager;
 #else
 // Dummy implementation to make sure the code compiles
 class NativeProcessManager : public NativeProcessProtocol::Manager {

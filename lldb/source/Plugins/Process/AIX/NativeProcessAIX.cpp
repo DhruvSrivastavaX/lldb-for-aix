@@ -270,7 +270,7 @@ NativeProcessAIX::Manager::Launch(ProcessLaunchInfo &launch_info,
 
 llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
 NativeProcessAIX::Manager::Attach(
-    lldb::pid_t pid, NativeProcessProtocol::NativeDelegate &native_delegate) {
+    lldb::pid_t pid, NativeProcessProtocol::NativeDelegate &native_delegate) { 
   Log *log = GetLog(POSIXLog::Process);
   LLDB_LOG(log, "pid = {0:x}", pid);
 
@@ -646,8 +646,6 @@ bool NativeProcessAIX::SupportHardwareSingleStepping() const {
 Status NativeProcessAIX::Resume(const ResumeActionList &resume_actions) {
   Log *log = GetLog(POSIXLog::Process);
   LLDB_LOG(log, "pid {0}", GetID());
-
-  NotifyTracersProcessWillResume();
 
   bool software_single_step = !SupportHardwareSingleStepping();
 
@@ -1365,11 +1363,9 @@ void NativeProcessAIX::StopTrackingThread(NativeThreadAIX &thread) {
 }
 
 void NativeProcessAIX::NotifyTracersProcessDidStop() {
-  m_intel_pt_collector.ProcessDidStop();
 }
 
-void NativeProcessAIX::NotifyTracersProcessWillResume() {
-  m_intel_pt_collector.ProcessWillResume();
+void NativeProcessAIX::NotifyTracersProcessWillResume() { 
 }
 
 Status NativeProcessAIX::NotifyTracersOfNewThread(lldb::tid_t tid) {

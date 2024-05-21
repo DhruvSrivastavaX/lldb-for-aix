@@ -88,7 +88,7 @@ ObjectContainerBigArchive::Object::Extract(const DataExtractor &data,
     return LLDB_INVALID_OFFSET;
 
   str.assign((const char *)data.GetData(&offset, 16), 16);
-  if (llvm::StringRef(str).startswith("#1/")) {
+  if (llvm::StringRef(str).starts_with("#1/")) {
     // If the name is longer than 16 bytes, or contains an embedded space then
     // it will use this format where the length of the name is here and the
     // name characters are after this header.
