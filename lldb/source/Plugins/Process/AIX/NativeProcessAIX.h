@@ -18,6 +18,7 @@
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/lldb-types.h"
+#include "llvm/ADT/SmallPtrSet.h" 
 #include "lldb/Host/aix/Support.h"
 
 #include "NativeThreadAIX.h"
@@ -50,6 +51,15 @@ public:
     Attach(lldb::pid_t pid, NativeDelegate &native_delegate) override;
 
     Extension GetSupportedExtensions() const override;
+private:
+	MainLoop::SignalHandleUP m_sigchld_handle;
+
+    llvm::SmallPtrSet<NativeProcessAIX *, 2> m_processes;
+
+    // Threads (events) which haven't been claimed by any process.
+    llvm::DenseSet<::pid_t> m_unowned_threads;
+
+	void SigchldHandler();
   };
 
   // NativeProcessProtocol Interface
@@ -148,9 +158,10 @@ protected:
   llvm::Expected<uint64_t> Syscall(llvm::ArrayRef<uint64_t> args);
 
 private:
-  MainLoop::SignalHandleUP m_sigchld_handle;
+  Manager &m_manager;
+  /*MainLoop::SignalHandleUP m_sigchld_handle;*/
   ArchSpec m_arch;
-  MainLoop& m_main_loop;
+  /*MainLoop& m_main_loop;*/
 
   LazyBool m_supports_mem_region = eLazyBoolCalculate;
   std::vector<std::pair<MemoryRegionInfo, FileSpec>> m_mem_region_cache;
@@ -167,6 +178,8 @@ private:
 
   // Returns a list of process threads that we have attached to.
   static llvm::Expected<std::vector<::pid_t>> Attach(::pid_t pid);
+
+  bool TryHandleWaitStatus(lldb::pid_t pid, WaitStatus status);
 
   void MonitorCallback(NativeThreadAIX &thread, WaitStatus status);
 
@@ -238,8 +251,6 @@ private:
                       int signo);
 
   void ThreadWasCreated(NativeThreadAIX &thread);
-
-  void SigchldHandler();
 
   Status PopulateMemoryRegionCache();
 

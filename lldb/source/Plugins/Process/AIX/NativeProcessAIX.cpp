@@ -15,6 +15,7 @@
 
 #include <fstream>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -45,6 +46,7 @@
 #include "lldb/Utility/StringExtractor.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Errno.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Threading.h"
 
@@ -221,6 +223,16 @@ static Status EnsureFDFlags(int fd, int flags) {
   return error;
 }
 
+/* TODO-AIX : Modified a little by adding a reference to NativeProcessAIX.
+ * Check later. */
+NativeProcessAIX::Manager::Manager(MainLoop &mainloop)
+    : NativeProcessProtocol::Manager(mainloop) {
+  Status status;
+  m_sigchld_handle = mainloop.RegisterSignal(
+      SIGCHLD, [this](MainLoopBase &) { SigchldHandler(); }, status);
+  assert(m_sigchld_handle && status.Success());
+}
+
 // Public Static Methods
 
 llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
@@ -314,19 +326,14 @@ NativeProcessAIX::Manager::GetSupportedExtensions() const {
 
 NativeProcessAIX::NativeProcessAIX(::pid_t pid, int terminal_fd,
                                        NativeDelegate &delegate,
-                                       const ArchSpec &arch, MainLoop &mainloop,
+                                       const ArchSpec &arch, Manager &manager,
                                        llvm::ArrayRef<::pid_t> tids)
     : NativeProcessProtocol(pid, terminal_fd, delegate), m_arch(arch),
-      m_main_loop(mainloop) {
+      m_manager(manager) {
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
   }
-
-  Status status;
-  m_sigchld_handle = mainloop.RegisterSignal(
-      SIGCHLD, [this](MainLoopBase &) { SigchldHandler(); }, status);
-  assert(m_sigchld_handle && status.Success());
 
   for (const auto &tid : tids) {
     NativeThreadAIX &thread = AddThread(tid, /*resume*/ false);
@@ -336,9 +343,6 @@ NativeProcessAIX::NativeProcessAIX(::pid_t pid, int terminal_fd,
   // Let our process instance know the thread has stopped.
   SetCurrentThreadID(tids[0]);
   SetState(StateType::eStateStopped, false);
-
-  // Proccess any signals we received before installing our handler
-  SigchldHandler();
 }
 
 llvm::Expected<std::vector<::pid_t>> NativeProcessAIX::Attach(::pid_t pid) {
@@ -361,6 +365,21 @@ llvm::Expected<std::vector<::pid_t>> NativeProcessAIX::Attach(::pid_t pid) {
   std::vector<::pid_t> tids;
   tids.push_back(pid);
   return std::move(tids);
+}
+
+bool NativeProcessAIX::TryHandleWaitStatus(lldb::pid_t pid,
+                                             WaitStatus status) {
+  if (pid == GetID() &&
+      (status.type == WaitStatus::Exit || status.type == WaitStatus::Signal)) {
+    // The process exited.  We're done monitoring.  Report to delegate.
+    SetExitStatus(status, true);
+    return true;
+  }
+  if (NativeThreadAIX *thread = GetThreadByID(pid)) {
+    MonitorCallback(*thread, status);
+    return true;
+  }
+  return false;
 }
 
 // Handles all waitpid events from the inferior process.
@@ -719,12 +738,13 @@ Status NativeProcessAIX::Halt() {
 Status NativeProcessAIX::Detach() {
   Status error;
 
-  // Stop monitoring the inferior.
-  m_sigchld_handle.reset();
-
   // Tell ptrace to detach from the process.
   if (GetID() == LLDB_INVALID_PROCESS_ID)
     return error;
+
+  // Cancel out any SIGSTOPs we may have sent while stopping the process.
+  // Otherwise, the process may stop as soon as we detach from it.
+  kill(GetID(), SIGCONT);
 
   for (const auto &thread : m_threads) {
     Status e = Detach(thread->GetID());
@@ -1578,39 +1598,58 @@ static std::optional<WaitStatus> HandlePid(::pid_t pid) {
   return wait_status;
 }
 
-void NativeProcessAIX::SigchldHandler() {
+static std::optional<std::pair<lldb::pid_t, WaitStatus>> WaitPid() {
   Log *log = GetLog(POSIXLog::Process);
 
-  // Threads can appear or disappear as a result of event processing, so gather
-  // the events upfront.
-  llvm::DenseMap<lldb::tid_t, WaitStatus> tid_events;
-  bool checked_main_thread = false;
-  for (const auto &thread_up : m_threads) {
-    if (thread_up->GetID() == GetID())
-      checked_main_thread = true;
+  int status;
+  ::pid_t wait_pid = llvm::sys::RetryAfterSignal(
+      -1, ::waitpid, -1, &status, /*__WALL | __WNOTHREAD |*/ WNOHANG);
 
-    if (std::optional<WaitStatus> status = HandlePid(thread_up->GetID()))
-      tid_events.try_emplace(thread_up->GetID(), *status);
-  }
-  // Check the main thread even when we're not tracking it as process exit
-  // events are reported that way.
-  if (!checked_main_thread) {
-    if (std::optional<WaitStatus> status = HandlePid(GetID()))
-      tid_events.try_emplace(GetID(), *status);
+  if (wait_pid == 0)
+    return std::nullopt;
+
+  if (wait_pid == -1) {
+    Status error(errno, eErrorTypePOSIX);
+    LLDB_LOG(log, "waitpid(-1, &status, _) failed: {1}", error);
+    return std::nullopt;
   }
 
-  for (auto &KV : tid_events) {
-    LLDB_LOG(log, "processing {0}({1}) ...", KV.first, KV.second);
-    if (KV.first == GetID() && (KV.second.type == WaitStatus::Exit ||
-                                KV.second.type == WaitStatus::Signal)) {
+  WaitStatus wait_status = WaitStatus::Decode(status);
 
-      // The process exited.  We're done monitoring.  Report to delegate.
-      SetExitStatus(KV.second, true);
+  LLDB_LOG(log, "waitpid(-1, &status, _) = {0}, status = {1}", wait_pid,
+           wait_status);
+  return std::make_pair(wait_pid, wait_status);
+}
+
+void NativeProcessAIX::Manager::SigchldHandler() {
+  Log *log = GetLog(POSIXLog::Process);
+  while (true) {
+    auto wait_result = WaitPid();
+    if (!wait_result)
       return;
+    lldb::pid_t pid = wait_result->first;
+    WaitStatus status = wait_result->second;
+
+    // Ask each process whether it wants to handle the event. Each event should
+    // be handled by exactly one process, but thread creation events require
+    // special handling.
+    // Thread creation consists of two events (one on the parent and one on the
+    // child thread) and they can arrive in any order nondeterministically. The
+    // parent event carries the information about the child thread, but not
+    // vice-versa. This means that if the child event arrives first, it may not
+    // be handled by any process (because it doesn't know the thread belongs to
+    // it).
+    bool handled = llvm::any_of(m_processes, [&](NativeProcessAIX *process) {
+      return process->TryHandleWaitStatus(pid, status);
+    });
+    if (!handled) {
+      if (status.type == WaitStatus::Stop && status.status == SIGSTOP) {
+        // Store the thread creation event for later collection.
+        m_unowned_threads.insert(pid);
+      } else {
+        LLDB_LOG(log, "Ignoring waitpid event {0} for pid {1}", status, pid);
+      }
     }
-    NativeThreadAIX *thread = GetThreadByID(KV.first);
-    assert(thread && "Why did this thread disappear?");
-    MonitorCallback(*thread, KV.second);
   }
 }
 

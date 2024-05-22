@@ -424,27 +424,13 @@ bool ObjectContainerBigArchive::ParseHeader() {
 }
 
 void ObjectContainerBigArchive::Object::Dump(Stream *s) const {
-  s->Printf("%p: ", static_cast<const void *>(this));
-  s->Indent();
-  const size_t num_archs = GetNumArchitectures();
-  const size_t num_objects = GetNumObjects();
-  s->Printf("ObjectContainerBigArchive, num_archs = %" PRIu64
-            ", num_objects = %" PRIu64 "",
-            (uint64_t)num_archs, (uint64_t)num_objects);
-  uint32_t i;
-  ArchSpec arch;
-  s->IndentMore();
-  for (i = 0; i < num_archs; i++) {
-    s->Indent();
-    GetArchitectureAtIndex(i, arch);
-    s->Printf("arch[%u] = %s\n", i, arch.GetArchitectureName());
-  }
-  for (i = 0; i < num_objects; i++) {
-    s->Indent();
-    s->Printf("object[%u] = %s\n", i, GetObjectNameAtIndex(i));
-  }
-  s->IndentLess();
-  s->EOL();
+  printf("name        = \"%s\"\n", ar_name.GetCString());
+  printf("mtime       = 0x%8.8" PRIx32 "\n", modification_time);
+  printf("size        = 0x%8.8" PRIx32 " (%" PRIu32 ")\n", size, size);
+  printf("file_offset = 0x%16.16" PRIx64 " (%" PRIu64 ")\n", file_offset,
+         file_offset);
+  printf("file_size   = 0x%16.16" PRIx64 " (%" PRIu64 ")\n\n", file_size,
+         file_size);
 }
 
 ObjectFileSP ObjectContainerBigArchive::GetObjectFile(const FileSpec *file) {
