@@ -38,6 +38,7 @@ add_custom_command(
 )
 add_custom_target(lldb-sbapi-dwarf-enums
   DEPENDS ${sb_languages_file})
+set_target_properties(lldb-sbapi-dwarf-enums PROPERTIES FOLDER "LLDB/Tablegenning")
 
 # AIX-NOTE: This is STATIC in Actual LLDB code TODO 
 add_lldb_library(liblldb STATIC ${option_framework}
@@ -216,7 +217,6 @@ if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
                     "Only the SB API is guaranteed to be stable.")
     add_llvm_symbol_exports(liblldb "${LLDB_EXPORT_ALL_SYMBOLS_EXPORTS_FILE}")
   endif()
-  set_target_properties(liblldb_exports PROPERTIES FOLDER "lldb misc")
 elseif (LLDB_EXPORT_ALL_SYMBOLS)
   MESSAGE("-- Symbols (liblldb): exporting all symbols from the lldb and lldb_private namespaces")
 
@@ -255,7 +255,6 @@ elseif (LLDB_EXPORT_ALL_SYMBOLS)
   )
 
   add_llvm_symbol_exports(liblldb ${exported_symbol_file})
-  set_target_properties(liblldb_exports PROPERTIES FOLDER "lldb misc")
 endif()
 
 if (NOT MSVC)
