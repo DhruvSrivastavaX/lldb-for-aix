@@ -43,6 +43,8 @@ set_target_properties(lldb-sbapi-dwarf-enums PROPERTIES FOLDER "LLDB/Tablegennin
 # AIX-NOTE: This is STATIC in Actual LLDB code TODO 
 add_lldb_library(liblldb STATIC ${option_framework}
   SBAddress.cpp
+  SBAddressRange.cpp
+  SBAddressRangeList.cpp
   SBAttachInfo.cpp
   SBBlock.cpp
   SBBreakpoint.cpp
