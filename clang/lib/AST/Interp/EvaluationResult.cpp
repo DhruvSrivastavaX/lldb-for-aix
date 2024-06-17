@@ -141,7 +141,9 @@ bool EvaluationResult::checkFullyInitialized(InterpState &S,
                                              const Pointer &Ptr) const {
   assert(Source);
   assert(empty());
-  assert(!Ptr.isZero());
+
+  if (Ptr.isZero())
+    return true;
 
   SourceLocation InitLoc;
   if (const auto *D = Source.dyn_cast<const Decl *>())
@@ -151,9 +153,12 @@ bool EvaluationResult::checkFullyInitialized(InterpState &S,
 
   if (const Record *R = Ptr.getRecord())
     return CheckFieldsInitialized(S, InitLoc, Ptr, R);
-  const auto *CAT =
-      cast<ConstantArrayType>(Ptr.getType()->getAsArrayTypeUnsafe());
-  return CheckArrayInitialized(S, InitLoc, Ptr, CAT);
+
+  if (const auto *CAT = dyn_cast_if_present<ConstantArrayType>(
+          Ptr.getType()->getAsArrayTypeUnsafe()))
+    return CheckArrayInitialized(S, InitLoc, Ptr, CAT);
+
+  return true;
 }
 
 } // namespace interp

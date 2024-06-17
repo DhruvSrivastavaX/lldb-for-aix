@@ -28,7 +28,8 @@ enum IndexedVersion : uint64_t {
   Version1 = 1,
   // Version 2: Added a call stack table.
   Version2 = 2,
-  // Version 3: Under development.
+  // Version 3: Added a radix tree for call stacks.  Switched to linear IDs for
+  // frames and call stacks.
   Version3 = 3,
 };
 
@@ -987,7 +988,7 @@ computeFrameHistogram(llvm::MapVector<CallStackId, llvm::SmallVector<FrameId>>
 //
 // The radix tree allows us to reconstruct call stacks in the leaf-to-root
 // order as we scan the array from left ro right while following pointers to
-// parents along the way
+// parents along the way.
 //
 // For example, if we are decoding CallStackId 2, we start a forward traversal
 // at Index 7, noting the call stack length of 4 and obtaining f5 and f4.  When
