@@ -5928,7 +5928,9 @@ void Process::PrintWarningUnsupportedLanguage(const SymbolContext &sc) {
   if (!sc.module_sp)
     return;
   LanguageType language = sc.GetLanguage();
-  if (language == eLanguageTypeUnknown)
+  if (language == eLanguageTypeUnknown ||
+      language == lldb::eLanguageTypeAssembly ||
+      language == lldb::eLanguageTypeMipsAssembler)
     return;
   LanguageSet plugins =
       PluginManager::GetAllTypeSystemSupportedLanguagesForTypes();
