@@ -174,6 +174,13 @@ here. Generic improvements to Clang as a whole or to its underlying
 infrastructure are described first, followed by language-specific
 sections with improvements to Clang's support for those languages.
 
+- Implemented improvements to BMIs for C++20 Modules that can reduce
+  the number of rebuilds during incremental recompilation. We are seeking
+  feedback from Build System authors and other interested users, especially
+  when you feel Clang changes the BMI and misses an opportunity to avoid
+  recompilations or causes correctness issues. See StandardCPlusPlusModules
+  `StandardCPlusPlusModules <StandardCPlusPlusModules.html>`_ for more details.
+
 - The ``\par`` documentation comment command now supports an optional
   argument, which denotes the header of the paragraph started by
   an instance of the ``\par`` command comment. The implementation
@@ -362,6 +369,12 @@ C23 Feature Support
 - Added the ``FLT_NORM_MAX``, ``DBL_NORM_MAX``, and ``LDBL_NORM_MAX`` to the
   freestanding implementation of ``<float.h>`` that ships with Clang.
 
+- Compiler support for `N2653 char8_t: A type for UTF-8 characters and strings`
+  <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2653.htm>`_: ``u8`` string
+  literals are now of type ``char8_t[N]`` in C23 and expose
+  ``__CLANG_ATOMIC_CHAR8_T_LOCK_FREE``/``__GCC_ATOMIC_CHAR8_T_LOCK_FREE`` to
+  implement the corresponding macro in ``<stdatomic.h>``.
+
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
@@ -422,6 +435,10 @@ Non-comprehensive list of changes in this release
 - Added support for ``TypeLoc::dump()`` for easier debugging, and improved
   textual and JSON dumping for various ``TypeLoc``-related nodes.
 
+- Clang can now emit distinct type-based alias analysis tags for incompatible
+  pointers, enabling more powerful alias analysis when accessing pointer types.
+  The new behavior can be enabled using ``-fpointer-tbaa``.
+
 New Compiler Flags
 ------------------
 - ``-fsanitize=implicit-bitfield-conversion`` checks implicit truncation and
@@ -464,8 +481,18 @@ New Compiler Flags
 - For the ARM target, added ``-Warm-interrupt-vfp-clobber`` that will emit a
   diagnostic when an interrupt handler is declared and VFP is enabled.
 
+- ``-fpointer-tbaa`` enables emission of distinct type-based alias
+  analysis tags for incompatible pointers.
+
 Deprecated Compiler Flags
 -------------------------
+
+- The ``-Ofast`` command-line option has been deprecated. This option both
+  enables the ``-O3`` optimization-level, as well as enabling non-standard
+  ``-ffast-math`` behaviors. As such, it is somewhat misleading as an
+  "optimization level". Users are advised to switch to ``-O3 -ffast-math`` if
+  the use of non-standard math behavior is intended, and ``-O3`` otherwise.
+  See `RFC <https://discourse.llvm.org/t/rfc-deprecate-ofast/78687>`_ for details.
 
 Modified Compiler Flags
 -----------------------
@@ -714,11 +741,17 @@ Improvements to Clang's diagnostics
 
 - Clang now diagnoses integer constant expressions that are folded to a constant value as an extension in more circumstances. Fixes #GH59863
 
+- Clang now diagnoses dangling assignments for pointer-like objects (annotated with `[[gsl::Pointer]]`) under `-Wdangling-assignment-gsl` (off by default)
+  Fixes #GH63310.
+
 Improvements to Clang's time-trace
 ----------------------------------
 
 - Clang now specifies that using ``auto`` in a lambda parameter is a C++14 extension when
   appropriate. (`#46059: <https://github.com/llvm/llvm-project/issues/46059>`_).
+
+- Clang now adds source file infomation for template instantiations as ``event["args"]["filename"]``. This
+  added behind an option ``-ftime-trace-verbose``. This is expected to increase the size of trace by 2-3 times.
 
 Improvements to Coverage Mapping
 --------------------------------
@@ -828,6 +861,14 @@ Bug Fixes in This Version
   have a constrained defaulted comparison operator (#GH89293).
 
 - Fixed Clang from generating dangling StringRefs when deserializing Exprs & Stmts (#GH98667)
+
+- ``__has_unique_object_representations`` correctly handles arrays of unknown bounds of
+  types by ensuring they are complete and instantiating them if needed. Fixes (#GH95311).
+
+- ``typeof_unqual`` now properly removes type qualifiers from arrays and their element types. (#GH92667)
+
+- Fixed an assertion failure when a template non-type parameter contains
+  an invalid expression.
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1042,6 +1083,7 @@ Bug Fixes to C++ Support
 - Fixed failed assertion when resolving context of defaulted comparison method outside of struct. (#GH96043).
 - Clang now diagnoses explicit object parameters in member pointers and other contexts where they should not appear.
   Fixes (#GH85992).
+- Fixed a crash-on-invalid bug involving extraneous template parameter with concept substitution. (#GH73885)
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
