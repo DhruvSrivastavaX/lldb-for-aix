@@ -223,8 +223,45 @@ static Status EnsureFDFlags(int fd, int flags) {
   return error;
 }
 
-/* TODO-AIX : Modified a little by adding a reference to NativeProcessAIX.
- * Check later. */
+#if 0
+static llvm::Error AddPtraceScopeNote(llvm::Error original_error) {
+  Expected<int> ptrace_scope = GetPtraceScope();
+  if (auto E = ptrace_scope.takeError()) {
+    Log *log = GetLog(POSIXLog::Process);
+    LLDB_LOG(log, "error reading value of ptrace_scope: {0}", E);
+
+    // The original error is probably more interesting than not being able to
+    // read or interpret ptrace_scope.
+    return original_error;
+  }
+
+  // We only have suggestions to provide for 1-3.
+  switch (*ptrace_scope) {
+  case 1:
+  case 2:
+    return llvm::createStringError(
+        std::error_code(errno, std::generic_category()),
+        "The current value of ptrace_scope is %d, which can cause ptrace to "
+        "fail to attach to a running process. To fix this, run:\n"
+        "\tsudo sysctl -w kernel.yama.ptrace_scope=0\n"
+        "For more information, see: "
+        "https://www.kernel.org/doc/Documentation/security/Yama.txt.",
+        *ptrace_scope);
+  case 3:
+    return llvm::createStringError(
+        std::error_code(errno, std::generic_category()),
+        "The current value of ptrace_scope is 3, which will cause ptrace to "
+        "fail to attach to a running process. This value cannot be changed "
+        "without rebooting.\n"
+        "For more information, see: "
+        "https://www.kernel.org/doc/Documentation/security/Yama.txt.");
+  case 0:
+  default:
+    return original_error;
+  }
+}
+#endif
+
 NativeProcessAIX::Manager::Manager(MainLoop &mainloop)
     : NativeProcessProtocol::Manager(mainloop) {
   Status status;
@@ -253,10 +290,10 @@ NativeProcessAIX::Manager::Launch(ProcessLaunchInfo &launch_info,
   }
 
   // Wait for the child process to trap on its call to execve.
-  int wstatus;
+  int wstatus = 0;
   ::pid_t wpid = llvm::sys::RetryAfterSignal(-1, ::waitpid, pid, &wstatus, 0);
   assert(wpid == pid);
-  (void)wpid;
+  UNUSED_IF_ASSERT_DISABLED(wpid);
   if (!WIFSTOPPED(wstatus)) {
     LLDB_LOG(log, "Could not sync with inferior process: wstatus={1}",
              WaitStatus::Decode(wstatus));
@@ -267,13 +304,17 @@ NativeProcessAIX::Manager::Launch(ProcessLaunchInfo &launch_info,
 
   ProcessInstanceInfo Info;
   if (!Host::GetProcessInfo(pid, Info)) {
-    return llvm::make_error<StringError>("Cannot get process architecture",
-                                         llvm::inconvertibleErrorCode());
-  }
+      return llvm::make_error<StringError>("Cannot get process architectrue",
+                                            llvm::inconvertibleErrorCode());
+  } 
+  /*llvm::Expected<ArchSpec> arch_or =
+      NativeRegisterContextAIX::DetermineArchitecture(pid);
+  if (!arch_or)
+    return arch_or.takeError();*/
 
-  // Set the architecture to the exe architecture.
-  LLDB_LOG(log, "pid = {0:x}, detected architecture {1}", pid,
-           Info.GetArchitecture().GetArchitectureName());
+ // Set the architecture to the exe architecture.
+  LLDB_LOG(log, "pid = {0}, detected architecture {1}", pid, 
+          Info.GetArchitecture().GetArchitectureName());
 
   return std::unique_ptr<NativeProcessAIX>(new NativeProcessAIX(
       pid, launch_info.GetPTY().ReleasePrimaryFileDescriptor(), native_delegate,
@@ -286,19 +327,24 @@ NativeProcessAIX::Manager::Attach(
   Log *log = GetLog(POSIXLog::Process);
   LLDB_LOG(log, "pid = {0:x}", pid);
 
-  // Retrieve the architecture for the running process.
   ProcessInstanceInfo Info;
   if (!Host::GetProcessInfo(pid, Info)) {
-    return llvm::make_error<StringError>("Cannot get process architecture",
-                                         llvm::inconvertibleErrorCode());
-  }
-
+      return llvm::make_error<StringError>("Cannot get process architectrue",
+                                            llvm::inconvertibleErrorCode());
+  } 
   auto tids_or = NativeProcessAIX::Attach(pid);
   if (!tids_or)
     return tids_or.takeError();
+#if 0
+  ArrayRef<::pid_t> tids = *tids_or;
+  llvm::Expected<ArchSpec> arch_or =
+      NativeRegisterContextAIX::DetermineArchitecture(tids[0]);
+  if (!arch_or)
+    return arch_or.takeError();
+#endif
 
-  return std::unique_ptr<NativeProcessAIX>(new NativeProcessAIX(
-      pid, -1, native_delegate, Info.GetArchitecture(), *this, *tids_or));
+  return std::unique_ptr<NativeProcessAIX>(
+      new NativeProcessAIX(pid, -1, native_delegate, Info.GetArchitecture(), *this, *tids_or));
 }
 
 lldb::addr_t NativeProcessAIX::GetSharedLibraryInfoAddress() {
@@ -322,14 +368,94 @@ NativeProcessAIX::Manager::GetSupportedExtensions() const {
   return supported;
 }
 
+static std::optional<std::pair<lldb::pid_t, WaitStatus>> WaitPid() {
+  Log *log = GetLog(POSIXLog::Process);
+
+  int status;
+  ::pid_t wait_pid = llvm::sys::RetryAfterSignal(
+      -1, ::waitpid, -1, &status, /*__WALL | __WNOTHREAD |*/ WNOHANG);
+
+  if (wait_pid == 0)
+    return std::nullopt;
+
+  if (wait_pid == -1) {
+    Status error(errno, eErrorTypePOSIX);
+    LLDB_LOG(log, "waitpid(-1, &status, _) failed: {1}", error);
+    return std::nullopt;
+  }
+
+  WaitStatus wait_status = WaitStatus::Decode(status);
+
+  LLDB_LOG(log, "waitpid(-1, &status, _) = {0}, status = {1}", wait_pid,
+           wait_status);
+  return std::make_pair(wait_pid, wait_status);
+}
+
+void NativeProcessAIX::Manager::SigchldHandler() {
+  Log *log = GetLog(POSIXLog::Process);
+  while (true) {
+    auto wait_result = WaitPid();
+    if (!wait_result)
+      return;
+    lldb::pid_t pid = wait_result->first;
+    WaitStatus status = wait_result->second;
+
+    // Ask each process whether it wants to handle the event. Each event should
+    // be handled by exactly one process, but thread creation events require
+    // special handling.
+    // Thread creation consists of two events (one on the parent and one on the
+    // child thread) and they can arrive in any order nondeterministically. The
+    // parent event carries the information about the child thread, but not
+    // vice-versa. This means that if the child event arrives first, it may not
+    // be handled by any process (because it doesn't know the thread belongs to
+    // it).
+    bool handled = llvm::any_of(m_processes, [&](NativeProcessAIX *process) {
+      return process->TryHandleWaitStatus(pid, status);
+    });
+    if (!handled) {
+      if (status.type == WaitStatus::Stop && status.status == SIGSTOP) {
+        // Store the thread creation event for later collection.
+        m_unowned_threads.insert(pid);
+      } else {
+        LLDB_LOG(log, "Ignoring waitpid event {0} for pid {1}", status, pid);
+      }
+    }
+  }
+}
+
+void NativeProcessAIX::Manager::CollectThread(::pid_t tid) {
+  Log *log = GetLog(POSIXLog::Process);
+
+  if (m_unowned_threads.erase(tid))
+    return; // We've encountered this thread already.
+
+  // The TID is not tracked yet, let's wait for it to appear.
+  int status = -1;
+  LLDB_LOG(log,
+           "received clone event for tid {0}. tid not tracked yet, "
+           "waiting for it to appear...",
+           tid);
+  ::pid_t wait_pid =
+      llvm::sys::RetryAfterSignal(-1, ::waitpid, tid, &status, P_ALL/*__WALL*/);
+
+  // It's theoretically possible to get other events if the entire process was
+  // SIGKILLed before we got a chance to check this. In that case, we'll just
+  // clean everything up when we get the process exit event.
+
+  LLDB_LOG(log,
+           "waitpid({0}, &status, __WALL) => {1} (errno: {2}, status = {3})",
+           tid, wait_pid, errno, WaitStatus::Decode(status));
+}
+
 // Public Instance Methods
 
 NativeProcessAIX::NativeProcessAIX(::pid_t pid, int terminal_fd,
                                        NativeDelegate &delegate,
                                        const ArchSpec &arch, Manager &manager,
                                        llvm::ArrayRef<::pid_t> tids)
-    : NativeProcessProtocol(pid, terminal_fd, delegate), m_arch(arch),
-      m_manager(manager) {
+    : NativeProcessProtocol(pid, terminal_fd, delegate), m_manager(manager),
+      m_arch(arch) {
+  manager.AddProcess(*this);
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
@@ -420,28 +546,6 @@ void NativeProcessAIX::MonitorCallback(NativeThreadAIX &thread,
   }
 }
 
-void NativeProcessAIX::WaitForCloneNotification(::pid_t pid) {
-  Log *log = GetLog(POSIXLog::Process);
-
-  // The PID is not tracked yet, let's wait for it to appear.
-  int status = -1;
-  LLDB_LOG(log,
-           "received clone event for pid {0}. pid not tracked yet, "
-           "waiting for it to appear...",
-           pid);
-  //FIXME
-  ::pid_t wait_pid =
-      llvm::sys::RetryAfterSignal(-1, ::waitpid, pid, &status, P_ALL/*__WALL*/);
-
-  // It's theoretically possible to get other events if the entire process was
-  // SIGKILLed before we got a chance to check this. In that case, we'll just
-  // clean everything up when we get the process exit event.
-
-  //FIXME
-  LLDB_LOG(log,
-           "waitpid({0}, &status, P_ALL/*__WALL*/) => {1} (errno: {2}, status = {3})",
-           pid, wait_pid, errno, WaitStatus::Decode(status));
-}
 
 void NativeProcessAIX::MonitorSIGTRAP(const WaitStatus status,
                                         NativeThreadAIX &thread) {
@@ -606,7 +710,7 @@ bool NativeProcessAIX::MonitorClone(NativeThreadAIX &parent,
   LLDB_LOG(log, "parent_tid={0}, child_pid={1}, event={2}", parent.GetID(),
            child_pid, event);
 
-  WaitForCloneNotification(child_pid);
+ // WaitForCloneNotification(child_pid);
 
   switch (event) {
 #if 0
@@ -706,14 +810,20 @@ Status NativeProcessAIX::Resume(const ResumeActionList &resume_actions) {
     case eStateStepping: {
       // Run the thread, possibly feeding it the signal.
       const int signo = action->signal;
-      ResumeThread(static_cast<NativeThreadAIX &>(*thread), action->state,
-                   signo);
+      Status error = ResumeThread(static_cast<NativeThreadAIX &>(*thread),
+                                  action->state, signo);
+      if (error.Fail())
+        return Status("NativeProcessAIX::%s: failed to resume thread "
+                      "for pid %" PRIu64 ", tid %" PRIu64 ", error = %s",
+                      __FUNCTION__, GetID(), thread->GetID(),
+                      error.AsCString());
+
       break;
     }
 
     case eStateSuspended:
     case eStateStopped:
-      llvm_unreachable("Unexpected state");
+      break;
 
     default:
       return Status("NativeProcessAIX::%s (): unexpected state %s specified "
@@ -994,7 +1104,8 @@ llvm::Expected<uint64_t>
 NativeProcessAIX::Syscall(llvm::ArrayRef<uint64_t> args) {
   PopulateMemoryRegionCache();
   auto region_it = llvm::find_if(m_mem_region_cache, [](const auto &pair) {
-    return pair.first.GetExecutable() == MemoryRegionInfo::eYes;
+    return pair.first.GetExecutable() == MemoryRegionInfo::eYes &&
+        pair.first.GetShared() != MemoryRegionInfo::eYes;
   });
   if (region_it == m_mem_region_cache.end())
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -1570,86 +1681,6 @@ void NativeProcessAIX::ThreadWasCreated(NativeThreadAIX &thread) {
     // We will need to wait for this new thread to stop as well before firing
     // the notification.
     thread.RequestStop();
-  }
-}
-
-static std::optional<WaitStatus> HandlePid(::pid_t pid) {
-  Log *log = GetLog(POSIXLog::Process);
-
-  int status;
-  ::pid_t wait_pid = llvm::sys::RetryAfterSignal(
-      -1, ::waitpid, pid, &status, WNOHANG);
-
-  if (wait_pid == 0)
-    return std::nullopt;
-
-  if (wait_pid == -1) {
-    Status error(errno, eErrorTypePOSIX);
-    LLDB_LOG(log, "waitpid({0}, &status, _) failed: {1}", pid,
-             error);
-    return std::nullopt;
-  }
-
-  assert(wait_pid == pid);
-
-  WaitStatus wait_status = WaitStatus::Decode(status);
-
-  LLDB_LOG(log, "waitpid({0})  got status = {1}", pid, wait_status);
-  return wait_status;
-}
-
-static std::optional<std::pair<lldb::pid_t, WaitStatus>> WaitPid() {
-  Log *log = GetLog(POSIXLog::Process);
-
-  int status;
-  ::pid_t wait_pid = llvm::sys::RetryAfterSignal(
-      -1, ::waitpid, -1, &status, /*__WALL | __WNOTHREAD |*/ WNOHANG);
-
-  if (wait_pid == 0)
-    return std::nullopt;
-
-  if (wait_pid == -1) {
-    Status error(errno, eErrorTypePOSIX);
-    LLDB_LOG(log, "waitpid(-1, &status, _) failed: {1}", error);
-    return std::nullopt;
-  }
-
-  WaitStatus wait_status = WaitStatus::Decode(status);
-
-  LLDB_LOG(log, "waitpid(-1, &status, _) = {0}, status = {1}", wait_pid,
-           wait_status);
-  return std::make_pair(wait_pid, wait_status);
-}
-
-void NativeProcessAIX::Manager::SigchldHandler() {
-  Log *log = GetLog(POSIXLog::Process);
-  while (true) {
-    auto wait_result = WaitPid();
-    if (!wait_result)
-      return;
-    lldb::pid_t pid = wait_result->first;
-    WaitStatus status = wait_result->second;
-
-    // Ask each process whether it wants to handle the event. Each event should
-    // be handled by exactly one process, but thread creation events require
-    // special handling.
-    // Thread creation consists of two events (one on the parent and one on the
-    // child thread) and they can arrive in any order nondeterministically. The
-    // parent event carries the information about the child thread, but not
-    // vice-versa. This means that if the child event arrives first, it may not
-    // be handled by any process (because it doesn't know the thread belongs to
-    // it).
-    bool handled = llvm::any_of(m_processes, [&](NativeProcessAIX *process) {
-      return process->TryHandleWaitStatus(pid, status);
-    });
-    if (!handled) {
-      if (status.type == WaitStatus::Stop && status.status == SIGSTOP) {
-        // Store the thread creation event for later collection.
-        m_unowned_threads.insert(pid);
-      } else {
-        LLDB_LOG(log, "Ignoring waitpid event {0} for pid {1}", status, pid);
-      }
-    }
   }
 }
 

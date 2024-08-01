@@ -45,14 +45,27 @@ public:
 	Manager(MainLoop &mainloop);
 
     llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
-    Launch(ProcessLaunchInfo &launch_info, NativeDelegate &native_delegate) override;
+    Launch(ProcessLaunchInfo &launch_info,
+            NativeDelegate &native_delegate) override;
 
     llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
     Attach(lldb::pid_t pid, NativeDelegate &native_delegate) override;
 
     Extension GetSupportedExtensions() const override;
-private:
-	MainLoop::SignalHandleUP m_sigchld_handle;
+
+    void AddProcess(NativeProcessAIX &process) {
+      m_processes.insert(&process);
+    }
+
+    void RemoveProcess(NativeProcessAIX &process) {
+      m_processes.erase(&process);
+    }
+
+    // Collect an event for the given tid, waiting for it if necessary.
+    void CollectThread(::pid_t tid);
+
+  private:
+    MainLoop::SignalHandleUP m_sigchld_handle;
 
     llvm::SmallPtrSet<NativeProcessAIX *, 2> m_processes;
 
@@ -63,6 +76,9 @@ private:
   };
 
   // NativeProcessProtocol Interface
+
+  ~NativeProcessAIX() override { m_manager.RemoveProcess(*this); }
+
   Status Resume(const ResumeActionList &resume_actions) override;
 
   Status Halt() override;
@@ -179,11 +195,11 @@ private:
   // Returns a list of process threads that we have attached to.
   static llvm::Expected<std::vector<::pid_t>> Attach(::pid_t pid);
 
+  static Status SetDefaultPtraceOpts(const lldb::pid_t);
+
   bool TryHandleWaitStatus(lldb::pid_t pid, WaitStatus status);
 
   void MonitorCallback(NativeThreadAIX &thread, WaitStatus status);
-
-  void WaitForCloneNotification(::pid_t pid);
 
   void MonitorSIGTRAP(const WaitStatus status, NativeThreadAIX &thread);
 
@@ -251,6 +267,8 @@ private:
                       int signo);
 
   void ThreadWasCreated(NativeThreadAIX &thread);
+
+  void SigchldHandler();
 
   Status PopulateMemoryRegionCache();
 
