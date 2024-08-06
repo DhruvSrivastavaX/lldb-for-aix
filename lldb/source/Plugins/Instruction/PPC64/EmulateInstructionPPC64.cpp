@@ -147,9 +147,9 @@ EmulateInstructionPPC64::GetOpcodeForInstruction(uint32_t opcode) {
        "addi RT, RA, SI"},
       {0xfc000003, 0xe8000000, &EmulateInstructionPPC64::EmulateLD,
        "ld RT, DS(RA)"},
-      /*{0xffff0003, 0x40820000, &EmulateInstructionPPC64::EmulateBNE,
-       "bne TARGET"},*/
-      {0xfc000003, 0x48000000, &EmulateInstructionPPC64::EmulateB,
+      {0xffff0003, 0x40820000, &EmulateInstructionPPC64::EmulateBNE,
+       "bne TARGET"},
+      {0xfc000002, 0x48000000, &EmulateInstructionPPC64::EmulateB,
        "b TARGET"},
       {0xfc000003, 0x48000002, &EmulateInstructionPPC64::EmulateBA,
        "ba TARGET"},
@@ -164,8 +164,6 @@ EmulateInstructionPPC64::GetOpcodeForInstruction(uint32_t opcode) {
       {0xfc0007fe, 0x4c000420, &EmulateInstructionPPC64::EmulateBCCTR,
        "bcctr BO,BI,BH"},
       {0xfc0007fe, 0x4c000460, &EmulateInstructionPPC64::EmulateBCTAR,
-       "bcctr BO,BI,BH"},
-      {0xfc00007e, 0x4c000460, &EmulateInstructionPPC64::EmulateBCTAR,
        "bctar BO,BI,BH"}};
   static const size_t k_num_ppc_opcodes = std::size(g_opcodes);
 
