@@ -59,6 +59,4 @@
 #define PTRACE_GETVSRREGS       (PT_COMMAND_MAX+10)
 #endif
 
-#define LLDB_PTRACE_NT_ARM_TLS 0x401 // ARM TLS register
-
 #endif // liblldb_Host_aix_Ptrace_h_

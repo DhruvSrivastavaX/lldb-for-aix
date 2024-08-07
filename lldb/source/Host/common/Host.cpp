@@ -362,8 +362,10 @@ bool Host::ResolveExecutableInBundle(FileSpec &file) { return false; }
 #include <stdio.h>
 extern char **p_xargv;
 
-//FIXME!!: source code copied from https://github.com/netty/netty-tcnative/pull/522/files
-//Need to handle license issue.
+/* Fix missing Dl_info & dladdr in AIX
+ * The code is taken from netbsd.org (src/crypto/external/bsd/openssl/dist/crypto/dso/dso_dlfcn.c)
+ * except strlcpy & strlcat (those are taken from openbsd.org (src/lib/libc/string))
+ */
 /*-
  * See IBM's AIX Version 7.2, Technical Reference:
  *  Base Operating System and Extensions, Volume 1 and 2
