@@ -92,7 +92,7 @@
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/raw_ostream.h"
 
-#if defined(__AIX__)
+#if defined(_AIX)
 #include <sys/ldr.h>
 #endif
 
@@ -2962,7 +2962,7 @@ Status ProcessGDBRemote::DoGetMemoryRegionInfo(addr_t load_addr,
   return error;
 }
 
-#if defined(__AIX__)
+#if defined(_AIX)
 Status ProcessGDBRemote::DoGetLDXINFO(struct ld_xinfo *info_ptr) {
   Status error(m_gdb_comm.GetLDXINFO(info_ptr));
   return error;

@@ -40,7 +40,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/JSON.h"
 
-#if defined(__AIX__)
+#if defined(_AIX)
 #include <sys/ldr.h>
 #endif
 
@@ -1712,7 +1712,7 @@ Status GDBRemoteCommunicationClient::GetMemoryRegionInfo(
   return error;
 }
 
-#if defined(__AIX__)
+#if defined(_AIX)
 Status GDBRemoteCommunicationClient::GetLDXINFO(struct ld_xinfo *info_ptr)
 {
   Status error;
