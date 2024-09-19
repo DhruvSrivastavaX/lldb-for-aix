@@ -27,6 +27,7 @@
 
 #include "llvm/Support/Threading.h"
 
+#include "AIXCore.h"
 #include "ProcessAIXCore.h"
 
 using namespace lldb_private;
@@ -60,6 +61,24 @@ lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
                                                bool can_connect) {
   lldb::ProcessSP process_sp;
   Log *log = GetLog(LLDBLog::Process);
+  if (crash_file && !can_connect) {
+      const size_t header_size = sizeof(AIXCORE::Core64_AIX_Hdr);
+
+      if (log) {
+          LLDB_LOGF(log, "Core Header Size: %zu", header_size);
+      }
+      auto data_sp = FileSystem::Instance().CreateDataBuffer(
+              crash_file->GetPath(), header_size, 0);
+      LLDB_LOGF(log, "Core Header Size: %p", data_sp.get());
+      LLDB_LOGF(log, "Core Header Size: %.*s", (crash_file->GetPath().size(),
+                  crash_file->GetPath().data()));
+      if (data_sp && data_sp->GetByteSize() == header_size) {
+          process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
+                  *crash_file);
+          LLDB_LOGF(log, "Core Header Size: Created!! ");
+      }
+
+  }
   if (log) {
       LLDB_LOGF(log, "Called CreateInstance for AIX Core");
   }
@@ -80,5 +99,25 @@ ProcessAIXCore::~ProcessAIXCore() {
   // destroy the broadcaster.
   Finalize(true /* destructing */);
 }
+
+bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
+                                bool plugin_specified_by_name) {
+
+    Log *log = GetLog(LLDBLog::Process);
+    if (log) {
+        LLDB_LOGF(log, "CanDebug Called ");
+    }
+    return true;
+
+}
+
+bool ProcessAIXCore::DoUpdateThreadList(ThreadList &old_thread_list,
+                                        ThreadList &new_thread_list) 
+{ return false; } 
+
+void ProcessAIXCore::RefreshStateAfterStop() {}
+
+size_t ProcessAIXCore::DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
+                                    Status &error) { return 0; }
 
 Status ProcessAIXCore::DoDestroy() { return Status(); }

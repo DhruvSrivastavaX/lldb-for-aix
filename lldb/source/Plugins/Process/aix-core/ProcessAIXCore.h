@@ -60,6 +60,17 @@ public:
   bool WarnBeforeDetach() const override { return false; }
 
   lldb_private::ArchSpec GetArchitecture();
+  
+  bool CanDebug(lldb::TargetSP target_sp,
+          bool plugin_specified_by_name) override;
+ 
+  bool DoUpdateThreadList(lldb_private::ThreadList &old_thread_list,
+          lldb_private::ThreadList &new_thread_list) override; 
+
+  void RefreshStateAfterStop() override; 
+
+  size_t DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
+          lldb_private::Status &error) override; 
 
 protected:
 private:
