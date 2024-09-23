@@ -62,20 +62,28 @@ lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
   lldb::ProcessSP process_sp;
   Log *log = GetLog(LLDBLog::Process);
   if (crash_file && !can_connect) {
-      const size_t header_size = sizeof(AIXCORE::Core64_AIX_Hdr);
+      const size_t header_size = sizeof(AIXCORE::AIXCore64Header);
 
       if (log) {
           LLDB_LOGF(log, "Core Header Size: %zu", header_size);
       }
       auto data_sp = FileSystem::Instance().CreateDataBuffer(
               crash_file->GetPath(), header_size, 0);
-      LLDB_LOGF(log, "Core Header Size: %p", data_sp.get());
-      LLDB_LOGF(log, "Core Header Size: %.*s", (crash_file->GetPath().size(),
-                  crash_file->GetPath().data()));
+      LLDB_LOGF(log, "Core file path: %s", 
+               crash_file->GetPath().c_str());
+      LLDB_LOGF(log, " size void %d, size uint %d, size ull %d , size char %d",
+              sizeof(void*), sizeof(unsigned int),
+                  sizeof(unsigned long long), sizeof(char));
       if (data_sp && data_sp->GetByteSize() == header_size) {
-          process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
-                  *crash_file);
-          LLDB_LOGF(log, "Core Header Size: Created!! ");
+          /* Add some magic number like check too */
+          AIXCORE::AIXCore64Header aixcore_header;
+          DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
+          lldb::offset_t data_offset = 0;
+          if(aixcore_header.Parse(data, &data_offset)) {
+              process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
+                      *crash_file);
+              LLDB_LOGF(log, "Core Header Size: Created!! ");
+          }
       }
 
   }
@@ -93,6 +101,7 @@ ProcessAIXCore::ProcessAIXCore(lldb::TargetSP target_sp,
 
 // Destructor
 ProcessAIXCore::~ProcessAIXCore() {
+  //Clear();
   // We need to call finalize on the process before destroying ourselves to
   // make sure all of the broadcaster cleanup goes as planned. If we destruct
   // this class, then Process::~Process() might have problems trying to fully
