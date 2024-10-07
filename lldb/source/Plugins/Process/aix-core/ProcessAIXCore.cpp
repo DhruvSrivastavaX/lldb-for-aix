@@ -80,6 +80,7 @@ lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
           DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
           lldb::offset_t data_offset = 0;
           if(aixcore_header.Parse(data, &data_offset)) {
+              //if AIX header
               process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
                       *crash_file);
               LLDB_LOGF(log, "Core Header Size: Created!! ");
@@ -116,7 +117,20 @@ bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
     if (log) {
         LLDB_LOGF(log, "CanDebug Called ");
     }
-    return true;
+    if (!m_core_module_sp && FileSystem::Instance().Exists(m_core_file)) {
+        ModuleSpec core_module_spec(m_core_file, target_sp->GetArchitecture());
+        Status error(ModuleList::GetSharedModule(core_module_spec, m_core_module_sp,
+                                                 nullptr, nullptr, nullptr));
+                LLDB_LOGF(log,"Checking type");
+        if (m_core_module_sp) {
+            ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
+            if (core_objfile && core_objfile->GetType() == ObjectFile::eTypeCoreFile){
+                LLDB_LOGF(log,"YEs, checked type");
+                return true;
+            }
+        }
+    }
+    return false;
 
 }
 
