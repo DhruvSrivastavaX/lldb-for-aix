@@ -141,8 +141,9 @@ Module::Module(const ModuleSpec &module_spec)
   }
 
   Log *log(GetLog(LLDBLog::Object | LLDBLog::Modules));
-  if (log != nullptr)
-    LLDB_LOGF(log, "%p Module::Module((%s) '%s%s%s%s')",
+  Log *log1 = GetLog(LLDBLog::Process);
+  /*if (log != nullptr)*/
+    LLDB_LOGF(log1, "%p Module::Module((%s) '%s%s%s%s')",
               static_cast<void *>(this),
               module_spec.GetArchitecture().GetArchitectureName(),
               module_spec.GetFileSpec().GetPath().c_str(),
@@ -155,6 +156,7 @@ Module::Module(const ModuleSpec &module_spec)
   if (data_sp)
     file_size = data_sp->GetByteSize();
 
+    LLDB_LOGF(log1, "Module ++ 1 file_size %d", file_size);
   // First extract all module specifications from the file using the local file
   // path. If there are no specifications, then don't fill anything in
   ModuleSpecList modules_specs;
@@ -162,6 +164,7 @@ Module::Module(const ModuleSpec &module_spec)
           module_spec.GetFileSpec(), 0, file_size, modules_specs, data_sp) == 0)
     return;
 
+    LLDB_LOGF(log1, "Module ++ 1.1 file_size %d", file_size);
   // Now make sure that one of the module specifications matches what we just
   // extract. We might have a module specification that specifies a file
   // "/usr/lib/dyld" with UUID XXX, but we might have a local version of
@@ -172,16 +175,19 @@ Module::Module(const ModuleSpec &module_spec)
   ModuleSpec matching_module_spec;
   if (!modules_specs.FindMatchingModuleSpec(module_spec,
                                             matching_module_spec)) {
+      LLDB_LOGF(log1, "Found local object file but the specs didn't match");
     if (log) {
       LLDB_LOGF(log, "Found local object file but the specs didn't match");
     }
     return;
   }
 
+    LLDB_LOGF(log1, "Module ++ 1.2 file_size %d", file_size);
   // Set m_data_sp if it was initially provided in the ModuleSpec. Note that
   // we cannot use the data_sp variable here, because it will have been
   // modified by GetModuleSpecifications().
   if (auto module_spec_data_sp = module_spec.GetData()) {
+      LLDB_LOGF(log1, "Module ++ 2");
     m_data_sp = module_spec_data_sp;
     m_mod_time = {};
   } else {
@@ -191,6 +197,7 @@ Module::Module(const ModuleSpec &module_spec)
     else if (matching_module_spec.GetFileSpec())
       m_mod_time = FileSystem::Instance().GetModificationTime(
           matching_module_spec.GetFileSpec());
+      LLDB_LOGF(log1, "Module ++ 3");
   }
 
   // Copy the architecture from the actual spec if we got one back, else use
@@ -231,6 +238,7 @@ Module::Module(const ModuleSpec &module_spec)
   // specification
   m_object_offset = matching_module_spec.GetObjectOffset();
   m_object_mod_time = matching_module_spec.GetObjectModificationTime();
+      LLDB_LOGF(log1, "Module ++ 4");
 }
 
 Module::Module(const FileSpec &file_spec, const ArchSpec &arch,
@@ -1188,9 +1196,13 @@ void Module::Dump(Stream *s) {
 ConstString Module::GetObjectName() const { return m_object_name; }
 
 ObjectFile *Module::GetObjectFile() {
+  Log *log1 = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log1, "GetObjectFile ++ 1  ");
   if (!m_did_load_objfile.load()) {
+  LLDB_LOGF(log1, "GetObjectFile ++  2 ");
     std::lock_guard<std::recursive_mutex> guard(m_mutex);
     if (!m_did_load_objfile.load()) {
+  LLDB_LOGF(log1, "GetObjectFile ++ 3  ");
       LLDB_SCOPED_TIMERF("Module::GetObjectFile () module = %s",
                          GetFileSpec().GetFilename().AsCString(""));
       lldb::offset_t data_offset = 0;
@@ -1201,7 +1213,9 @@ ObjectFile *Module::GetObjectFile() {
       else if (m_file)
         file_size = FileSystem::Instance().GetByteSize(m_file);
 
+  LLDB_LOGF(log1, "GetObjectFile ++ 4 fs %d, mof %d ",file_size, m_object_offset);
       if (file_size > m_object_offset) {
+  LLDB_LOGF(log1, "GetObjectFile ++ 5  ");
         m_did_load_objfile = true;
         // FindPlugin will modify its data_sp argument. Do not let it
         // modify our m_data_sp member.
@@ -1210,6 +1224,7 @@ ObjectFile *Module::GetObjectFile() {
             shared_from_this(), &m_file, m_object_offset,
             file_size - m_object_offset, data_sp, data_offset);
         if (m_objfile_sp) {
+  LLDB_LOGF(log1, "GetObjectFile ++ 6  ");
           // Once we get the object file, update our module with the object
           // file's architecture since it might differ in vendor/os if some
           // parts were unknown.  But since the matching arch might already be
@@ -1219,6 +1234,7 @@ ObjectFile *Module::GetObjectFile() {
 
           m_unwind_table.ModuleWasUpdated();
         } else {
+  LLDB_LOGF(log1, "GetObjectFile ++ 7  ");
           ReportError("failed to load objfile for {0}\nDebugging will be "
                       "degraded for this module.",
                       GetFileSpec().GetPath().c_str());
@@ -1226,6 +1242,7 @@ ObjectFile *Module::GetObjectFile() {
       }
     }
   }
+  LLDB_LOGF(log1, "GetObjectFile ++ 8  ");
   return m_objfile_sp.get();
 }
 

@@ -122,8 +122,15 @@ bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
         Status error(ModuleList::GetSharedModule(core_module_spec, m_core_module_sp,
                                                  nullptr, nullptr, nullptr));
                 LLDB_LOGF(log,"Checking type");
+                if(error.Success())
+                    LLDB_LOGF(log,"Checking type");
+                else
+                    LLDB_LOGF(log,"Error %s", error.AsCString());
+
         if (m_core_module_sp) {
+                LLDB_LOGF(log,"core_module_sp not null");
             ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
+                if(core_objfile) {LLDB_LOGF(log,"core_objfile fetched");}
             if (core_objfile && core_objfile->GetType() == ObjectFile::eTypeCoreFile){
                 LLDB_LOGF(log,"YEs, checked type");
                 return true;

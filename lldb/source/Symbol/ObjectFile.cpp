@@ -198,16 +198,21 @@ size_t ObjectFile::GetModuleSpecifications(const FileSpec &file,
                                            lldb::offset_t file_size,
                                            ModuleSpecList &specs,
                                            DataBufferSP data_sp) {
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log," ObjectFile ++ 1");
   if (!data_sp)
     data_sp = FileSystem::Instance().CreateDataBuffer(
         file.GetPath(), g_initial_bytes_to_read, file_offset);
   if (data_sp) {
+  LLDB_LOGF(log," ObjectFile ++2 ");
     if (file_size == 0) {
+  LLDB_LOGF(log," ObjectFile ++ 3");
       const lldb::offset_t actual_file_size =
           FileSystem::Instance().GetByteSize(file);
       if (actual_file_size > file_offset)
         file_size = actual_file_size - file_offset;
     }
+  LLDB_LOGF(log," ObjectFile ++ 4");
     return ObjectFile::GetModuleSpecifications(file,        // file spec
                                                data_sp,     // data bytes
                                                0,           // data offset

@@ -16,6 +16,8 @@
 #include "lldb/Utility/Iterable.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/UUID.h"
+#include "lldb/Utility/LLDBLog.h"
+#include "lldb/Utility/Log.h"
 
 #include "llvm/Support/Chrono.h"
 
@@ -46,7 +48,11 @@ public:
     // parse object inside module format for example: /usr/ccs/lib/libc.a(shr_64.o)
     llvm::SmallString<256> path_with_object;
     file_spec.GetPath(path_with_object);
+    Log *log = GetLog(LLDBLog::Process);
+    LLDB_LOGF(log, "ModuleSpec ++ 1 %s", path_with_object.c_str());
+
     if (strstr(path_with_object.c_str(), "(") != nullptr) {
+        LLDB_LOGF(log, "ModuleSpec ++ 2");
       char *part;
       char *str = (char *)path_with_object.c_str();
       part = strtok(str, "()");
@@ -60,6 +66,7 @@ public:
     } else {
       m_file = file_spec;
       m_object_size = FileSystem::Instance().GetByteSize(file_spec);
+        LLDB_LOGF(log, "ModuleSpec ++ 3 %d", m_object_size);
     }
   }
 
