@@ -1635,8 +1635,9 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
   // Prefer likely predicted branches to selects on out-of-order cores.
   PredictableSelectIsExpensive = Subtarget->getSchedModel().isOutOfOrder();
 
-  setPrefLoopAlignment(Align(1ULL << Subtarget->getPrefLoopLogAlignment()));
-  setPrefFunctionAlignment(Align(1ULL << Subtarget->getPrefLoopLogAlignment()));
+  setPrefLoopAlignment(Align(1ULL << Subtarget->getPreferBranchLogAlignment()));
+  setPrefFunctionAlignment(
+      Align(1ULL << Subtarget->getPreferBranchLogAlignment()));
 
   setMinFunctionAlignment(Subtarget->isThumb() ? Align(2) : Align(4));
 }
@@ -7123,19 +7124,6 @@ static SDValue isVMOVModifiedImm(uint64_t SplatBits, uint64_t SplatUndef,
       ImmMask <<= 1;
     }
 
-    if (DAG.getDataLayout().isBigEndian()) {
-      // Reverse the order of elements within the vector.
-      unsigned BytesPerElem = VectorVT.getScalarSizeInBits() / 8;
-      unsigned Mask = (1 << BytesPerElem) - 1;
-      unsigned NumElems = 8 / BytesPerElem;
-      unsigned NewImm = 0;
-      for (unsigned ElemNum = 0; ElemNum < NumElems; ++ElemNum) {
-        unsigned Elem = ((Imm >> ElemNum * BytesPerElem) & Mask);
-        NewImm |= Elem << (NumElems - ElemNum - 1) * BytesPerElem;
-      }
-      Imm = NewImm;
-    }
-
     // Op=1, Cmode=1110.
     OpCmode = 0x1e;
     VT = is128Bits ? MVT::v2i64 : MVT::v1i64;
@@ -7968,7 +7956,7 @@ SDValue ARMTargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
 
       if (Val.getNode()) {
         SDValue Vmov = DAG.getNode(ARMISD::VMOVIMM, dl, VmovVT, Val);
-        return DAG.getNode(ISD::BITCAST, dl, VT, Vmov);
+        return DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, VT, Vmov);
       }
 
       // Try an immediate VMVN.
@@ -7978,7 +7966,7 @@ SDValue ARMTargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
           VT, ST->hasMVEIntegerOps() ? MVEVMVNModImm : VMVNModImm);
       if (Val.getNode()) {
         SDValue Vmov = DAG.getNode(ARMISD::VMVNIMM, dl, VmovVT, Val);
-        return DAG.getNode(ISD::BITCAST, dl, VT, Vmov);
+        return DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, VT, Vmov);
       }
 
       // Use vmov.f32 to materialize other v2f32 and v4f32 splats.
@@ -8030,7 +8018,6 @@ SDValue ARMTargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
     if (!isa<ConstantFPSDNode>(V) && !isa<ConstantSDNode>(V))
       isConstant = false;
 
-    ValueCounts.insert(std::make_pair(V, 0));
     unsigned &Count = ValueCounts[V];
 
     // Is this value dominant? (takes up more than half of the lanes)
@@ -14456,9 +14443,9 @@ static SDValue PerformANDCombine(SDNode *N,
                                       DAG, dl, VbicVT, VT, OtherModImm);
       if (Val.getNode()) {
         SDValue Input =
-          DAG.getNode(ISD::BITCAST, dl, VbicVT, N->getOperand(0));
+            DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, VbicVT, N->getOperand(0));
         SDValue Vbic = DAG.getNode(ARMISD::VBICIMM, dl, VbicVT, Input, Val);
-        return DAG.getNode(ISD::BITCAST, dl, VT, Vbic);
+        return DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, VT, Vbic);
       }
     }
   }
@@ -14752,9 +14739,9 @@ static SDValue PerformORCombine(SDNode *N,
                             SplatBitSize, DAG, dl, VorrVT, VT, OtherModImm);
       if (Val.getNode()) {
         SDValue Input =
-          DAG.getNode(ISD::BITCAST, dl, VorrVT, N->getOperand(0));
+            DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, VorrVT, N->getOperand(0));
         SDValue Vorr = DAG.getNode(ARMISD::VORRIMM, dl, VorrVT, Input, Val);
-        return DAG.getNode(ISD::BITCAST, dl, VT, Vorr);
+        return DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, VT, Vorr);
       }
     }
   }
@@ -15145,9 +15132,9 @@ static SDValue PerformVMOVRRDCombine(SDNode *N,
     SDValue Op0, Op1;
     while (BV.getOpcode() == ISD::INSERT_VECTOR_ELT) {
       if (isa<ConstantSDNode>(BV.getOperand(2))) {
-        if (BV.getConstantOperandVal(2) == Offset)
+        if (BV.getConstantOperandVal(2) == Offset && !Op0)
           Op0 = BV.getOperand(1);
-        if (BV.getConstantOperandVal(2) == Offset + 1)
+        if (BV.getConstantOperandVal(2) == Offset + 1 && !Op1)
           Op1 = BV.getOperand(1);
       }
       BV = BV.getOperand(0);
@@ -17667,6 +17654,11 @@ SDValue ARMTargetLowering::PerformIntrinsicCombine(SDNode *N,
     // No immediate versions of these to check for.
     break;
 
+  case Intrinsic::arm_neon_vbsl: {
+    SDLoc dl(N);
+    return DAG.getNode(ARMISD::VBSP, dl, N->getValueType(0), N->getOperand(1),
+                       N->getOperand(2), N->getOperand(3));
+  }
   case Intrinsic::arm_mve_vqdmlah:
   case Intrinsic::arm_mve_vqdmlash:
   case Intrinsic::arm_mve_vqrdmlah:
@@ -18606,7 +18598,9 @@ static SDValue PerformBITCASTCombine(SDNode *N,
 
   // We may have a bitcast of something that has already had this bitcast
   // combine performed on it, so skip past any VECTOR_REG_CASTs.
-  while (Src.getOpcode() == ARMISD::VECTOR_REG_CAST)
+  if (Src.getOpcode() == ARMISD::VECTOR_REG_CAST &&
+      Src.getOperand(0).getValueType().getScalarSizeInBits() <=
+          Src.getValueType().getScalarSizeInBits())
     Src = Src.getOperand(0);
 
   // Bitcast from element-wise VMOV or VMVN doesn't need VREV if the VREV that
@@ -19084,6 +19078,10 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
       return SDValue();
     break;
   }
+  case ARMISD::VBSP:
+    if (N->getOperand(1) == N->getOperand(2))
+      return N->getOperand(1);
+    return SDValue();
   case ISD::INTRINSIC_VOID:
   case ISD::INTRINSIC_W_CHAIN:
     switch (N->getConstantOperandVal(1)) {
@@ -19283,149 +19281,6 @@ bool ARMTargetLowering::isFNegFree(EVT VT) const {
   }
 
   return false;
-}
-
-/// Check if Ext1 and Ext2 are extends of the same type, doubling the bitwidth
-/// of the vector elements.
-static bool areExtractExts(Value *Ext1, Value *Ext2) {
-  auto areExtDoubled = [](Instruction *Ext) {
-    return Ext->getType()->getScalarSizeInBits() ==
-           2 * Ext->getOperand(0)->getType()->getScalarSizeInBits();
-  };
-
-  if (!match(Ext1, m_ZExtOrSExt(m_Value())) ||
-      !match(Ext2, m_ZExtOrSExt(m_Value())) ||
-      !areExtDoubled(cast<Instruction>(Ext1)) ||
-      !areExtDoubled(cast<Instruction>(Ext2)))
-    return false;
-
-  return true;
-}
-
-/// Check if sinking \p I's operands to I's basic block is profitable, because
-/// the operands can be folded into a target instruction, e.g.
-/// sext/zext can be folded into vsubl.
-bool ARMTargetLowering::shouldSinkOperands(Instruction *I,
-                                           SmallVectorImpl<Use *> &Ops) const {
-  if (!I->getType()->isVectorTy())
-    return false;
-
-  if (Subtarget->hasNEON()) {
-    switch (I->getOpcode()) {
-    case Instruction::Sub:
-    case Instruction::Add: {
-      if (!areExtractExts(I->getOperand(0), I->getOperand(1)))
-        return false;
-      Ops.push_back(&I->getOperandUse(0));
-      Ops.push_back(&I->getOperandUse(1));
-      return true;
-    }
-    default:
-      return false;
-    }
-  }
-
-  if (!Subtarget->hasMVEIntegerOps())
-    return false;
-
-  auto IsFMSMul = [&](Instruction *I) {
-    if (!I->hasOneUse())
-      return false;
-    auto *Sub = cast<Instruction>(*I->users().begin());
-    return Sub->getOpcode() == Instruction::FSub && Sub->getOperand(1) == I;
-  };
-  auto IsFMS = [&](Instruction *I) {
-    if (match(I->getOperand(0), m_FNeg(m_Value())) ||
-        match(I->getOperand(1), m_FNeg(m_Value())))
-      return true;
-    return false;
-  };
-
-  auto IsSinker = [&](Instruction *I, int Operand) {
-    switch (I->getOpcode()) {
-    case Instruction::Add:
-    case Instruction::Mul:
-    case Instruction::FAdd:
-    case Instruction::ICmp:
-    case Instruction::FCmp:
-      return true;
-    case Instruction::FMul:
-      return !IsFMSMul(I);
-    case Instruction::Sub:
-    case Instruction::FSub:
-    case Instruction::Shl:
-    case Instruction::LShr:
-    case Instruction::AShr:
-      return Operand == 1;
-    case Instruction::Call:
-      if (auto *II = dyn_cast<IntrinsicInst>(I)) {
-        switch (II->getIntrinsicID()) {
-        case Intrinsic::fma:
-          return !IsFMS(I);
-        case Intrinsic::sadd_sat:
-        case Intrinsic::uadd_sat:
-        case Intrinsic::arm_mve_add_predicated:
-        case Intrinsic::arm_mve_mul_predicated:
-        case Intrinsic::arm_mve_qadd_predicated:
-        case Intrinsic::arm_mve_vhadd:
-        case Intrinsic::arm_mve_hadd_predicated:
-        case Intrinsic::arm_mve_vqdmull:
-        case Intrinsic::arm_mve_vqdmull_predicated:
-        case Intrinsic::arm_mve_vqdmulh:
-        case Intrinsic::arm_mve_qdmulh_predicated:
-        case Intrinsic::arm_mve_vqrdmulh:
-        case Intrinsic::arm_mve_qrdmulh_predicated:
-        case Intrinsic::arm_mve_fma_predicated:
-          return true;
-        case Intrinsic::ssub_sat:
-        case Intrinsic::usub_sat:
-        case Intrinsic::arm_mve_sub_predicated:
-        case Intrinsic::arm_mve_qsub_predicated:
-        case Intrinsic::arm_mve_hsub_predicated:
-        case Intrinsic::arm_mve_vhsub:
-          return Operand == 1;
-        default:
-          return false;
-        }
-      }
-      return false;
-    default:
-      return false;
-    }
-  };
-
-  for (auto OpIdx : enumerate(I->operands())) {
-    Instruction *Op = dyn_cast<Instruction>(OpIdx.value().get());
-    // Make sure we are not already sinking this operand
-    if (!Op || any_of(Ops, [&](Use *U) { return U->get() == Op; }))
-      continue;
-
-    Instruction *Shuffle = Op;
-    if (Shuffle->getOpcode() == Instruction::BitCast)
-      Shuffle = dyn_cast<Instruction>(Shuffle->getOperand(0));
-    // We are looking for a splat that can be sunk.
-    if (!Shuffle ||
-        !match(Shuffle, m_Shuffle(
-                            m_InsertElt(m_Undef(), m_Value(), m_ZeroInt()),
-                            m_Undef(), m_ZeroMask())))
-      continue;
-    if (!IsSinker(I, OpIdx.index()))
-      continue;
-
-    // All uses of the shuffle should be sunk to avoid duplicating it across gpr
-    // and vector registers
-    for (Use &U : Op->uses()) {
-      Instruction *Insn = cast<Instruction>(U.getUser());
-      if (!IsSinker(Insn, U.getOperandNo()))
-        return false;
-    }
-
-    Ops.push_back(&Shuffle->getOperandUse(0));
-    if (Shuffle != Op)
-      Ops.push_back(&Op->getOperandUse(0));
-    Ops.push_back(&OpIdx.value());
-  }
-  return true;
 }
 
 Type *ARMTargetLowering::shouldConvertSplatType(ShuffleVectorInst *SVI) const {
@@ -21073,7 +20928,7 @@ bool ARMTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = EVT::getVectorVT(I.getType()->getContext(), MVT::i64, NumElts);
     Info.ptrVal = I.getArgOperand(I.arg_size() - 1);
     Info.offset = 0;
-    Info.align.reset();
+    Info.align = I.getParamAlign(I.arg_size() - 1).valueOrOne();
     // volatile loads with NEON intrinsics not supported
     Info.flags = MachineMemOperand::MOLoad;
     return true;
@@ -21120,7 +20975,7 @@ bool ARMTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = EVT::getVectorVT(I.getType()->getContext(), MVT::i64, NumElts);
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
-    Info.align.reset();
+    Info.align = I.getParamAlign(0).valueOrOne();
     // volatile stores with NEON intrinsics not supported
     Info.flags = MachineMemOperand::MOStore;
     return true;
