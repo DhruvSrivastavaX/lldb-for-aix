@@ -60,6 +60,13 @@ ObjectFile::FindPlugin(const lldb::ModuleSP &module_sp, const FileSpec *file,
       static_cast<const void *>(file), static_cast<uint64_t>(file_offset),
       static_cast<uint64_t>(file_size));
 
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log, 
+      "ObjectFile::FindPlugin (module = %s, file = %p, file_offset = "
+      "0x%8.8" PRIx64 ", file_size = 0x%8.8" PRIx64 ")",
+      module_sp->GetFileSpec().GetPath().c_str(),
+      static_cast<const void *>(file), static_cast<uint64_t>(file_offset),
+      static_cast<uint64_t>(file_size));
   if (!module_sp)
     return {};
 
@@ -68,10 +75,12 @@ ObjectFile::FindPlugin(const lldb::ModuleSP &module_sp, const FileSpec *file,
 
   if (!data_sp) {
     const bool file_exists = FileSystem::Instance().Exists(*file);
+  LLDB_LOGF(log, " FindPlugin ++ 1");  
     // We have an object name which most likely means we have a .o file in
     // a static archive (.a file). Try and see if we have a cached archive
     // first without reading any data first
     if (file_exists && module_sp->GetObjectName()) {
+  LLDB_LOGF(log, " FindPlugin ++ 2");  
       ObjectFileSP object_file_sp = CreateObjectFromContainer(
           module_sp, file, file_offset, file_size, data_sp, data_offset);
       if (object_file_sp)
@@ -82,6 +91,7 @@ ObjectFile::FindPlugin(const lldb::ModuleSP &module_sp, const FileSpec *file,
     // container plug-ins can use these bytes to see if they can parse this
     // file.
     if (file_size > 0) {
+  LLDB_LOGF(log, " FindPlugin ++ 3");  
       data_sp = FileSystem::Instance().CreateDataBuffer(
           file->GetPath(), g_initial_bytes_to_read, file_offset);
       data_offset = 0;
@@ -92,6 +102,7 @@ ObjectFile::FindPlugin(const lldb::ModuleSP &module_sp, const FileSpec *file,
     // Check for archive file with format "/path/to/archive.a(object.o)"
     llvm::SmallString<256> path_with_object;
     module_sp->GetFileSpec().GetPath(path_with_object);
+  LLDB_LOGF(log, " FindPlugin ++ 4");  
 
     FileSpec archive_file;
     ConstString archive_object;
@@ -100,6 +111,7 @@ ObjectFile::FindPlugin(const lldb::ModuleSP &module_sp, const FileSpec *file,
                                                archive_object, must_exist)) {
       file_size = FileSystem::Instance().GetByteSize(archive_file);
       if (file_size > 0) {
+  LLDB_LOGF(log, " FindPlugin ++ 5");  
         file = &archive_file;
         module_sp->SetFileSpecAndObjectName(archive_file, archive_object);
         // Check if this is a object container by iterating through all
@@ -125,15 +137,19 @@ ObjectFile::FindPlugin(const lldb::ModuleSP &module_sp, const FileSpec *file,
     // Check if this is a normal object file by iterating through all
     // object file plugin instances.
     ObjectFileCreateInstance callback;
+  LLDB_LOGF(log, " FindPlugin ++ 6");  
     for (uint32_t idx = 0;
          (callback = PluginManager::GetObjectFileCreateCallbackAtIndex(idx)) !=
          nullptr;
          ++idx) {
       ObjectFileSP object_file_sp(callback(module_sp, data_sp, data_offset,
                                            file, file_offset, file_size));
-      if (object_file_sp.get())
+      if (object_file_sp.get()) {
+  LLDB_LOGF(log, " FindPlugin ++ 6.1");  
         return object_file_sp;
+      }
     }
+  LLDB_LOGF(log, " FindPlugin ++ 7");  
 
     // Check if this is a object container by iterating through all object
     // container plugin instances and then trying to get an object file
@@ -198,16 +214,21 @@ size_t ObjectFile::GetModuleSpecifications(const FileSpec &file,
                                            lldb::offset_t file_size,
                                            ModuleSpecList &specs,
                                            DataBufferSP data_sp) {
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log," ObjectFile ++ 1");
   if (!data_sp)
     data_sp = FileSystem::Instance().CreateDataBuffer(
         file.GetPath(), g_initial_bytes_to_read, file_offset);
   if (data_sp) {
+  LLDB_LOGF(log," ObjectFile ++2 ");
     if (file_size == 0) {
+  LLDB_LOGF(log," ObjectFile ++ 3");
       const lldb::offset_t actual_file_size =
           FileSystem::Instance().GetByteSize(file);
       if (actual_file_size > file_offset)
         file_size = actual_file_size - file_offset;
     }
+  LLDB_LOGF(log," ObjectFile ++ 4");
     return ObjectFile::GetModuleSpecifications(file,        // file spec
                                                data_sp,     // data bytes
                                                0,           // data offset
@@ -223,6 +244,8 @@ size_t ObjectFile::GetModuleSpecifications(
     lldb::offset_t data_offset, lldb::offset_t file_offset,
     lldb::offset_t file_size, lldb_private::ModuleSpecList &specs) {
   const size_t initial_count = specs.GetSize();
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log," ObjectFile ++ 5 specs.GetSize %d", specs.GetSize());
   ObjectFileGetModuleSpecifications callback;
   uint32_t i;
   // Try the ObjectFile plug-ins

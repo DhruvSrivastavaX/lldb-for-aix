@@ -805,22 +805,29 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
   const UUID *uuid_ptr = module_spec.GetUUIDPtr();
   const FileSpec &module_file_spec = module_spec.GetFileSpec();
   const ArchSpec &arch = module_spec.GetArchitecture();
+  Log *log1 = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log1, "GetSharedModule ++ 1 uuid_ptr %s, filespec %s, arch %s ",
+          uuid_ptr->GetAsString().c_str(), module_file_spec.GetPath().c_str(), 
+          arch.GetArchitectureName());
 
   // Make sure no one else can try and get or create a module while this
   // function is actively working on it by doing an extra lock on the global
   // mutex list.
   if (!always_create) {
+  LLDB_LOGF(log1, "GetSharedModule ++ 2  ");
     ModuleList matching_module_list;
     shared_module_list.FindModules(module_spec, matching_module_list);
     const size_t num_matching_modules = matching_module_list.GetSize();
 
     if (num_matching_modules > 0) {
+  LLDB_LOGF(log1, "GetSharedModule ++ 3  ");
       for (size_t module_idx = 0; module_idx < num_matching_modules;
            ++module_idx) {
         module_sp = matching_module_list.GetModuleAtIndex(module_idx);
 
         // Make sure the file for the module hasn't been modified
         if (module_sp->FileHasChanged()) {
+  LLDB_LOGF(log1, "GetSharedModule ++ 4  ");
           if (old_modules)
             old_modules->push_back(module_sp);
 
@@ -836,6 +843,7 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
         } else {
           // The module matches and the module was not modified from when it
           // was last loaded.
+  LLDB_LOGF(log1, "GetSharedModule ++ 5  ");
           return error;
         }
       }
@@ -845,6 +853,7 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
   if (module_sp)
     return error;
 
+  LLDB_LOGF(log1, "GetSharedModule ++ 6  ");
   module_sp = std::make_shared<Module>(module_spec);
   // Make sure there are a module and an object file since we can specify a
   // valid file path with an architecture that might not be in that file. By
@@ -852,16 +861,20 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
   if (module_sp->GetObjectFile()) {
     // If we get in here we got the correct arch, now we just need to verify
     // the UUID if one was given
+  LLDB_LOGF(log1, "GetSharedModule ++ 7  ");
     if (uuid_ptr && *uuid_ptr != module_sp->GetUUID()) {
+  LLDB_LOGF(log1, "GetSharedModule ++ 8  ");
       module_sp.reset();
     } else {
       if (module_sp->GetObjectFile() &&
           module_sp->GetObjectFile()->GetType() ==
               ObjectFile::eTypeStubLibrary) {
         module_sp.reset();
+  LLDB_LOGF(log1, "GetSharedModule ++ 9  ");
       } else {
         if (did_create_ptr) {
           *did_create_ptr = true;
+  LLDB_LOGF(log1, "GetSharedModule ++ 10  ");
         }
 
         shared_module_list.ReplaceEquivalent(module_sp, old_modules);
@@ -870,10 +883,12 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
     }
   } else {
     module_sp.reset();
+  LLDB_LOGF(log1, "GetSharedModule ++ 11  ");
   }
 
   if (module_search_paths_ptr) {
     const auto num_directories = module_search_paths_ptr->GetSize();
+  LLDB_LOGF(log1, "GetSharedModule ++ 12  ");
     for (size_t idx = 0; idx < num_directories; ++idx) {
       auto search_path_spec = module_search_paths_ptr->GetFileSpecAtIndex(idx);
       FileSystem::Instance().Resolve(search_path_spec);
@@ -889,6 +904,7 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
       resolved_module_spec.GetFileSpec() = search_path_spec;
       module_sp = std::make_shared<Module>(resolved_module_spec);
       if (module_sp->GetObjectFile()) {
+  LLDB_LOGF(log1, "GetSharedModule ++ 13  ");
         // If we get in here we got the correct arch, now we just need to
         // verify the UUID if one was given
         if (uuid_ptr && *uuid_ptr != module_sp->GetUUID()) {
@@ -906,6 +922,7 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
           }
         }
       } else {
+  LLDB_LOGF(log1, "GetSharedModule ++ 14  ");
         module_sp.reset();
       }
     }
@@ -923,8 +940,10 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
   // Don't look for the file if it appears to be the same one we already
   // checked for above...
   if (located_binary_modulespec.GetFileSpec() != module_file_spec) {
+  LLDB_LOGF(log1, "GetSharedModule ++ 15  ");
     if (!FileSystem::Instance().Exists(
             located_binary_modulespec.GetFileSpec())) {
+  LLDB_LOGF(log1, "GetSharedModule ++ 16  ");
       located_binary_modulespec.GetFileSpec().GetPath(path, sizeof(path));
       if (path[0] == '\0')
         module_file_spec.GetPath(path, sizeof(path));
@@ -954,6 +973,7 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
       return error;
     }
 
+  LLDB_LOGF(log1, "GetSharedModule ++ 17  ");
     // Make sure no one else can try and get or create a module while this
     // function is actively working on it by doing an extra lock on the global
     // mutex list.
@@ -972,6 +992,7 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
       // If we didn't have a UUID in mind when looking for the object file,
       // then we should make sure the modification time hasn't changed!
       if (platform_module_spec.GetUUIDPtr() == nullptr) {
+  LLDB_LOGF(log1, "GetSharedModule ++ 18  ");
         auto file_spec_mod_time = FileSystem::Instance().GetModificationTime(
             located_binary_modulespec.GetFileSpec());
         if (file_spec_mod_time != llvm::sys::TimePoint<>()) {
@@ -987,6 +1008,7 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
 
     if (!module_sp) {
       module_sp = std::make_shared<Module>(platform_module_spec);
+  LLDB_LOGF(log1, "GetSharedModule ++ 1  ");
       // Make sure there are a module and an object file since we can specify a
       // valid file path with an architecture that might not be in that file.
       // By getting the object file we can guarantee that the architecture
@@ -998,12 +1020,14 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
         } else {
           if (did_create_ptr)
             *did_create_ptr = true;
+  LLDB_LOGF(log1, "GetSharedModule ++ 19  ");
 
           shared_module_list.ReplaceEquivalent(module_sp, old_modules);
         }
       } else {
         located_binary_modulespec.GetFileSpec().GetPath(path, sizeof(path));
 
+  LLDB_LOGF(log1, "GetSharedModule ++ 20  ");
         if (located_binary_modulespec.GetFileSpec()) {
           if (arch.IsValid())
             error = Status::FromErrorStringWithFormat(
@@ -1027,6 +1051,7 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
     }
   }
 
+  LLDB_LOGF(log1, "GetSharedModule ++ 21  ");
   return error;
 }
 

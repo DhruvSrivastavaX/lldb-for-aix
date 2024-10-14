@@ -543,6 +543,7 @@ private:
   template <typename T> const T *sectionHeaderTable() const;
 
   size_t getFileHeaderSize() const;
+  size_t getCoreHeaderSize() const;
 
   const XCOFFSectionHeader32 *toSection32(DataRefImpl Ref) const;
   const XCOFFSectionHeader64 *toSection64(DataRefImpl Ref) const;

@@ -63,6 +63,9 @@ public:
   
   bool CanDebug(lldb::TargetSP target_sp,
           bool plugin_specified_by_name) override;
+  
+  // Creating a new process, or attaching to an existing one
+  lldb_private::Status DoLoadCore() override;
  
   bool DoUpdateThreadList(lldb_private::ThreadList &old_thread_list,
           lldb_private::ThreadList &new_thread_list) override; 

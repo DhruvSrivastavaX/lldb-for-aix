@@ -58,6 +58,7 @@ protected:
 
     ID_XCOFF32, // AIX XCOFF 32-bit
     ID_XCOFF64, // AIX XCOFF 64-bit
+    ID_AIXCORE64,// AIX Coredump 64-bit
 
     ID_ELF32L, // ELF 32-bit, little endian
     ID_ELF32B, // ELF 32-bit, big endian

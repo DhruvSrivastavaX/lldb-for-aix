@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Object/XCOFFObjectFile.h"
+#include "llvm/Object/CoreFileAIX.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/DataExtractor.h"
@@ -765,6 +766,10 @@ size_t XCOFFObjectFile::getFileHeaderSize() const {
   return is64Bit() ? sizeof(XCOFFFileHeader64) : sizeof(XCOFFFileHeader32);
 }
 
+size_t XCOFFObjectFile::getCoreHeaderSize() const {
+  return is64Bit() ? sizeof(CoreFileAIX::AIXCore64Header) : 0;
+}
+
 size_t XCOFFObjectFile::getSectionHeaderSize() const {
   return is64Bit() ? sizeof(XCOFFSectionHeader64) :
                      sizeof(XCOFFSectionHeader32);
@@ -975,7 +980,8 @@ int32_t XCOFFObjectFile::getSectionFlags(DataRefImpl Sec) const {
 
 XCOFFObjectFile::XCOFFObjectFile(unsigned int Type, MemoryBufferRef Object)
     : ObjectFile(Type, Object) {
-  assert(Type == Binary::ID_XCOFF32 || Type == Binary::ID_XCOFF64);
+  assert(Type == Binary::ID_XCOFF32 || Type == Binary::ID_XCOFF64 ||
+         Type == Binary::ID_AIXCORE64);
 }
 
 ArrayRef<XCOFFSectionHeader64> XCOFFObjectFile::sections64() const {
@@ -1158,6 +1164,19 @@ XCOFFObjectFile::create(unsigned Type, MemoryBufferRef MBR) {
   uint64_t CurOffset = 0;
   const auto *Base = Obj->base();
   MemoryBufferRef Data = Obj->Data;
+  if(Type == Binary::ID_AIXCORE64)
+  {
+      // Call for AIX Core
+      auto FileHeaderOrErr =
+          getObject<void>(Data, Base + CurOffset, Obj->getCoreHeaderSize());
+      if (Error E = FileHeaderOrErr.takeError())
+          return std::move(E);
+      Obj->FileHeader = FileHeaderOrErr.get();
+
+      CurOffset += Obj->getFileHeaderSize();
+      return std::move(Obj);
+
+  }
 
   // Parse file header.
   auto FileHeaderOrErr =

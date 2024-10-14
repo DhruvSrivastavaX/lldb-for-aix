@@ -44,6 +44,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Object/XCOFFObjectFile.h"
+#include "Plugins/Process/aix-core/AIXCore.h"
 
 using namespace llvm;
 using namespace lldb;
@@ -52,6 +53,7 @@ using namespace lldb_private;
 LLDB_PLUGIN_DEFINE(ObjectFileXCOFF)
 
 char ObjectFileXCOFF::ID;
+bool m_is_core = false;
 
 // FIXME: target 64bit at this moment.
 
@@ -74,46 +76,146 @@ ObjectFile *ObjectFileXCOFF::CreateInstance(const lldb::ModuleSP &module_sp,
                                           const lldb_private::FileSpec *file,
                                           lldb::offset_t file_offset,
                                           lldb::offset_t length) {
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log, "CreateInstance XCOFF ++ 1.0 length %d", length);
+#if 0
+  if(m_is_core)
+  {
+
+      LLDB_LOGF(log, "CreateInstance Core ++ 1");  
+      bool mapped_writable = false;
+      if (!data_sp) {
+          data_sp = MapFileDataWritable(*file, length, file_offset);
+          if (!data_sp)
+              return nullptr;
+          data_offset = 0;
+          mapped_writable = true;
+      }
+
+      assert(data_sp);
+
+      //if (data_sp->GetByteSize() <= (llvm::ELF::EI_NIDENT + data_offset))
+        //  return nullptr;
+      LLDB_LOGF(log, "CreateInstance Core ++ 2 data_sp size %d", data_sp->GetByteSize());  
+
+      const uint8_t *magic = data_sp->GetBytes() + data_offset;
+      //if (!ELFHeader::MagicBytesMatch(magic))
+        //  return nullptr;
+      LLDB_LOGF(log, "CreateInstance Core ++ 3 %d", magic);  
+
+      // Update the data to contain the entire file if it doesn't already
+      if (data_sp->GetByteSize() < length) {
+          data_sp = MapFileDataWritable(*file, length, file_offset);
+          if (!data_sp)
+              return nullptr;
+          data_offset = 0;
+          mapped_writable = true;
+          magic = data_sp->GetBytes();
+      }
+      LLDB_LOGF(log, "CreateInstance Core ++ 4");  
+
+      // If we didn't map the data as writable take ownership of the buffer.
+      if (!mapped_writable) {
+          data_sp = std::make_shared<DataBufferHeap>(data_sp->GetBytes(),
+                  data_sp->GetByteSize());
+          data_offset = 0;
+          magic = data_sp->GetBytes();
+      LLDB_LOGF(log, "CreateInstance Core ++ 5");  
+      }
+      LLDB_LOGF(log, "CreateInstance Core ++ 6");  
+
+     // unsigned address_size = ELFHeader::AddressSizeInBytes(magic);
+     // if (address_size == 4 || address_size == 8) {
+          std::unique_ptr<ObjectFileXCOFF> objfile_up(new ObjectFileXCOFF(
+                      module_sp, data_sp, data_offset, file, file_offset, length));
+          ArchSpec spec = objfile_up->GetArchitecture();
+          if (!spec)
+              LLDB_LOGF(log, "CreateInstance Core ++ spec");  
+          if (objfile_up->SetModulesArchitecture(spec) == false)
+              LLDB_LOGF(log, "CreateInstance Core ++ arch");  
+          if (spec /*&& objfile_up->SetModulesArchitecture(spec)*/)
+              return objfile_up.release();
+     // }
+      LLDB_LOGF(log, "CreateInstance Core ++ 6");  
+      return nullptr;
+
+  }
+#endif
   if (!data_sp) {
     data_sp = MapFileData(*file, length, file_offset);
+  LLDB_LOGF(log, "CreateInstance XCOFF ++ 2 length %d", length);  
     if (!data_sp)
       return nullptr;
     data_offset = 0;
   }
 
+  LLDB_LOGF(log, "CreateInstance XCOFF ++ 3 offset %d", file_offset);  
   if (!ObjectFileXCOFF::MagicBytesMatch(data_sp, data_offset, length))
     return nullptr;
+  LLDB_LOGF(log, "CreateInstance XCOFF ++ 4 length %d", length);  
 
   // Update the data to contain the entire file if it doesn't already
   if (data_sp->GetByteSize() < length) {
     data_sp = MapFileData(*file, length, file_offset);
     if (!data_sp)
       return nullptr;
+  LLDB_LOGF(log, "CreateInstance XCOFF ++ 5 length %d", length);  
     data_offset = 0;
   }
   auto objfile_up = std::make_unique<ObjectFileXCOFF>(
       module_sp, data_sp, data_offset, file, file_offset, length);
   if (!objfile_up)
     return nullptr;
+  LLDB_LOGF(log, "CreateInstance XCOFF ++6  length %d IS core? %d", length, m_is_core);  
 
   // Cache xcoff binary.
   if (!objfile_up->CreateBinary())
     return nullptr;
+  LLDB_LOGF(log, "CreateInstance XCOFF ++ 7 length %d", length);  
 
   if (!objfile_up->ParseHeader())
     //FIXME objfile leak
     return nullptr;
+  LLDB_LOGF(log, "CreateInstance XCOFF ++ 8 length %d", length);  
 
   UGLY_FLAG_FOR_AIX = true;
   return objfile_up.release();
 }
 
+bool ObjectFileXCOFF::CreateCoreBinary()
+{
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log, "CreateCoreBinary");  
+  /*auto binary = llvm::object::XCOFFObjectFile::createObjectFile(llvm::MemoryBufferRef(
+      toStringRef(m_data.GetData()), m_file.GetFilename().GetStringRef()),
+    file_magic::aix_coredump_64);
+  if (!binary) {
+    LLDB_LOG_ERROR(log, binary.takeError(),
+                   "Failed to create binary for file ({1}): {0}", m_file);
+  LLDB_LOGF(log, "CreateCoreBinary ++1");  
+    return false;
+  }
+  LLDB_LOGF(log, "CreateCoreBinary ++2");  
+  m_binary =
+      llvm::unique_dyn_cast<llvm::object::XCOFFObjectFile>(std::move(*binary));
+  if (!m_binary)
+    return false;
+
+  LLDB_LOG(log, "this = {0}, module = {1} ({2}), file = {3}, binary = {4}",
+           this, GetModule().get(), GetModule()->GetSpecificationDescription(),
+           m_file.GetPath(), m_binary.get());*/
+  return true;
+
+} 
 bool ObjectFileXCOFF::CreateBinary() {
   if (m_binary)
     return true;
 
   Log *log = GetLog(LLDBLog::Object);
 
+ /* if(m_is_core) {
+      return CreateCoreBinary();
+  }*/
   auto binary = llvm::object::XCOFFObjectFile::createObjectFile(llvm::MemoryBufferRef(
       toStringRef(m_data.GetData()), m_file.GetFilename().GetStringRef()),
     file_magic::xcoff_object_64);
@@ -147,6 +249,8 @@ size_t ObjectFileXCOFF::GetModuleSpecifications(
     lldb::offset_t length, lldb_private::ModuleSpecList &specs) {
   const size_t initial_count = specs.GetSize();
 
+  Log *log = GetLog(LLDBLog::Process);
+    LLDB_LOGF(log, "GOT HERE!!! common %d", initial_count);
   if (ObjectFileXCOFF::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
     ArchSpec arch_spec = ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
     ModuleSpec spec(file, arch_spec);
@@ -155,8 +259,27 @@ size_t ObjectFileXCOFF::GetModuleSpecifications(
   }
   return specs.GetSize() - initial_count;
 }
+#if 0
+enum CoreVersion : uint64_t {AIXCORE32 = 0xFEEDDB1, AIXCORE64 = 0xFEEDDB2};
 
+static uint32_t AIXCoreHeaderSizeFromMagic(uint32_t magic) {
+  Log *log = GetLog(LLDBLog::Process);
+    LLDB_LOGF(log, "magic CORE %lx", magic);
+    switch (magic) {
+
+  case AIXCORE64:
+      m_is_core = true;
+    return sizeof(struct AIXCORE::AIXCore64Header);
+    break;
+
+
+    }
+    return 0;
+}
+#endif
 static uint32_t XCOFFHeaderSizeFromMagic(uint32_t magic) {
+  Log *log = GetLog(LLDBLog::Process);
+    LLDB_LOGF(log, "magic XCOFF %lx", magic);
   switch (magic) {
   /* TODO: 32bit not supported yet
   case XCOFF::XCOFF32:
@@ -178,9 +301,27 @@ bool ObjectFileXCOFF::MagicBytesMatch(DataBufferSP &data_sp,
                                     lldb::addr_t data_length) {
   lldb_private::DataExtractor data; 
   data.SetData(data_sp, data_offset, data_length);
+  Log *log = GetLog(LLDBLog::Process);
+    LLDB_LOGF(log, "MagicBytesMatch %d, %d", data_offset, data_length);
   lldb::offset_t offset = 0;
   uint16_t magic = data.GetU16(&offset);
+    LLDB_LOGF(log, "MagicBytesMatch offset %d, len %d, magic:%x", data_offset, data_length,
+            magic);
   return XCOFFHeaderSizeFromMagic(magic) != 0;
+  /*if(XCOFFHeaderSizeFromMagic(magic) == 0) {
+      offset += 2;
+      uint32_t magic = data.GetU32(&offset);
+      LLDB_LOGF(log, "MagicBytesMatch offset %d, len %d, magic:%lx", data_offset, data_length,
+            magic);
+      return AIXCoreHeaderSizeFromMagic(magic) != 0;
+  }
+  else{
+      LLDB_LOGF(log, "MagicBytesMatch offset NOO  %d, len %d, magic:%lx", data_offset, data_length,
+            magic);
+      return XCOFFHeaderSizeFromMagic(magic) != 0;
+  }
+      LLDB_LOGF(log, "MagicBytesMatch offset NOO0  %d, len %d, magic:%lx", data_offset, data_length,
+            magic);*/
 }
 
 bool ObjectFileXCOFF::ParseHeader() {

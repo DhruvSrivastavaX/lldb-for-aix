@@ -26,6 +26,7 @@
 #include "lldb/Utility/State.h"
 
 #include "llvm/Support/Threading.h"
+#include "Plugins/ObjectFile/XCOFF/ObjectFileXCOFF.h"
 
 #include "AIXCore.h"
 #include "ProcessAIXCore.h"
@@ -122,9 +123,17 @@ bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
         Status error(ModuleList::GetSharedModule(core_module_spec, m_core_module_sp,
                                                  nullptr, nullptr, nullptr));
                 LLDB_LOGF(log,"Checking type");
+                if(error.Success())
+                    LLDB_LOGF(log,"Checking type %s", (target_sp->GetArchitecture()).GetArchitectureName());
+                else
+                    LLDB_LOGF(log,"Error %s", error.AsCString());
+
         if (m_core_module_sp) {
+                LLDB_LOGF(log,"core_module_sp not null");
             ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
-            if (core_objfile && core_objfile->GetType() == ObjectFile::eTypeCoreFile){
+                if(core_objfile) {LLDB_LOGF(log,"core_objfile fetched");}
+                LLDB_LOGF(log,"core_objfile %s", core_objfile->GetFileSpec().GetPath().c_str());
+            if (core_objfile /*&& core_objfile->GetType() == ObjectFile::eTypeCoreFile*/){
                 LLDB_LOGF(log,"YEs, checked type");
                 return true;
             }
@@ -132,6 +141,31 @@ bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
     }
     return false;
 
+}
+
+// Process Control
+Status ProcessAIXCore::DoLoadCore() {
+  Status error;
+    Log *log = GetLog(LLDBLog::Process);
+    LLDB_LOGF(log, "DoLoadCore Called ");
+  if (!m_core_module_sp) {
+    error = Status::FromErrorString("invalid core module");
+    return error;
+  }
+
+  ObjectFileXCOFF *core = (ObjectFileXCOFF *)(m_core_module_sp->GetObjectFile());
+  if (core == nullptr) {
+    error = Status::FromErrorString("invalid core object file");
+    return error;
+  }
+    LLDB_LOGF(log, "DoLoadCore Called core object created ");
+
+ /* llvm::ArrayRef<elf::ELFProgramHeader> segments = core->ProgramHeaders();
+  if (segments.size() == 0) {
+    error = Status::FromErrorString("core file has no segments");
+    return error;
+  }*/
+    return error;
 }
 
 bool ProcessAIXCore::DoUpdateThreadList(ThreadList &old_thread_list,

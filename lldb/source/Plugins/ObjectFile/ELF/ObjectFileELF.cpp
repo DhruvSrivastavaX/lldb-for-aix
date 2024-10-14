@@ -368,6 +368,8 @@ ObjectFile *ObjectFileELF::CreateInstance(const lldb::ModuleSP &module_sp,
                                           const lldb_private::FileSpec *file,
                                           lldb::offset_t file_offset,
                                           lldb::offset_t length) {
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log, "CreateInstance ELF ++ 1");  
   bool mapped_writable = false;
   if (!data_sp) {
     data_sp = MapFileDataWritable(*file, length, file_offset);
