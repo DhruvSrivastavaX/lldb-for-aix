@@ -26,7 +26,7 @@
 #include "lldb/Utility/State.h"
 
 #include "llvm/Support/Threading.h"
-#include "Plugins/ObjectFile/XCOFF/ObjectFileXCOFF.h"
+#include "Plugins/ObjectFile/AIXCore/ObjectFileAIXCore.h"
 
 #include "AIXCore.h"
 #include "ProcessAIXCore.h"
@@ -72,9 +72,6 @@ lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
               crash_file->GetPath(), header_size, 0);
       LLDB_LOGF(log, "Core file path: %s", 
                crash_file->GetPath().c_str());
-      LLDB_LOGF(log, " size void %d, size uint %d, size ull %d , size char %d",
-              sizeof(void*), sizeof(unsigned int),
-                  sizeof(unsigned long long), sizeof(char));
       if (data_sp && data_sp->GetByteSize() == header_size) {
           /* Add some magic number like check too */
           AIXCORE::AIXCore64Header aixcore_header;
@@ -84,7 +81,7 @@ lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
               //if AIX header
               process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
                       *crash_file);
-              LLDB_LOGF(log, "Core Header Size: Created!! ");
+              LLDB_LOGF(log, "Core Header Parsing done!! ");
           }
       }
 
@@ -122,12 +119,6 @@ bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
         ModuleSpec core_module_spec(m_core_file, target_sp->GetArchitecture());
         Status error(ModuleList::GetSharedModule(core_module_spec, m_core_module_sp,
                                                  nullptr, nullptr, nullptr));
-                LLDB_LOGF(log,"Checking type");
-                if(error.Success())
-                    LLDB_LOGF(log,"Checking type %s", (target_sp->GetArchitecture()).GetArchitectureName());
-                else
-                    LLDB_LOGF(log,"Error %s", error.AsCString());
-
         if (m_core_module_sp) {
                 LLDB_LOGF(log,"core_module_sp not null");
             ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
@@ -153,14 +144,21 @@ Status ProcessAIXCore::DoLoadCore() {
     return error;
   }
 
-  ObjectFileXCOFF *core = (ObjectFileXCOFF *)(m_core_module_sp->GetObjectFile());
+  ObjectFileAIXCore *core = (ObjectFileAIXCore *)(m_core_module_sp->GetObjectFile());
   if (core == nullptr) {
     error = Status::FromErrorString("invalid core object file");
     return error;
   }
     LLDB_LOGF(log, "DoLoadCore Called core object created ");
 
- /* llvm::ArrayRef<elf::ELFProgramHeader> segments = core->ProgramHeaders();
+    ArchSpec arch(m_core_module_sp->GetArchitecture());
+
+    ArchSpec target_arch = GetTarget().GetArchitecture();
+    ArchSpec core_arch(m_core_module_sp->GetArchitecture());
+    target_arch.MergeFrom(core_arch);
+    GetTarget().SetArchitecture(target_arch);
+    LLDB_LOGF(log,"Checking type %s", (m_core_module_sp->GetArchitecture()).GetArchitectureName());
+    /* llvm::ArrayRef<elf::ELFProgramHeader> segments = core->ProgramHeaders();
   if (segments.size() == 0) {
     error = Status::FromErrorString("core file has no segments");
     return error;

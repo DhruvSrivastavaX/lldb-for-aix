@@ -93,14 +93,7 @@ ObjectFile *ObjectFileAIXCore::CreateInstance(const lldb::ModuleSP &module_sp,
 
       assert(data_sp);
 
-      //if (data_sp->GetByteSize() <= (llvm::ELF::EI_NIDENT + data_offset))
-        //  return nullptr;
-      LLDB_LOGF(log, "CreateInstance AIXCore ++ 2 data_sp size %d", data_sp->GetByteSize());  
-
       const uint8_t *magic = data_sp->GetBytes() + data_offset;
-      //if (!ELFHeader::MagicBytesMatch(magic))
-        //  return nullptr;
-      LLDB_LOGF(log, "CreateInstance AIXCore ++ 3 %d", magic);  
 
       // Update the data to contain the entire file if it doesn't already
       if (data_sp->GetByteSize() < length) {
@@ -111,7 +104,6 @@ ObjectFile *ObjectFileAIXCore::CreateInstance(const lldb::ModuleSP &module_sp,
           mapped_writable = true;
           magic = data_sp->GetBytes();
       }
-      LLDB_LOGF(log, "CreateInstance AIXCore ++ 4");  
 
       // If we didn't map the data as writable take ownership of the buffer.
       if (!mapped_writable) {
@@ -136,36 +128,10 @@ ObjectFile *ObjectFileAIXCore::CreateInstance(const lldb::ModuleSP &module_sp,
               return objfile_up.release();
      // }
       LLDB_LOGF(log, "CreateInstance AIXCore ++ 7");  
-      return nullptr;
+      return objfile_up.release();
 
   }
 }
-
-bool ObjectFileAIXCore::CreateCoreBinary()
-{
-  Log *log = GetLog(LLDBLog::Process);
-  LLDB_LOGF(log, "CreateCoreBinary");  
-  /*auto binary = llvm::object::XCOFFObjectFile::createObjectFile(llvm::MemoryBufferRef(
-      toStringRef(m_data.GetData()), m_file.GetFilename().GetStringRef()),
-    file_magic::aix_coredump_64);
-  if (!binary) {
-    LLDB_LOG_ERROR(log, binary.takeError(),
-                   "Failed to create binary for file ({1}): {0}", m_file);
-  LLDB_LOGF(log, "CreateCoreBinary ++1");  
-    return false;
-  }
-  LLDB_LOGF(log, "CreateCoreBinary ++2");  
-  m_binary =
-      llvm::unique_dyn_cast<llvm::object::XCOFFObjectFile>(std::move(*binary));
-  if (!m_binary)
-    return false;
-
-  LLDB_LOG(log, "this = {0}, module = {1} ({2}), file = {3}, binary = {4}",
-           this, GetModule().get(), GetModule()->GetSpecificationDescription(),
-           m_file.GetPath(), m_binary.get());*/
-  return true;
-
-} 
 
 ObjectFile *ObjectFileAIXCore::CreateMemoryInstance(
     const lldb::ModuleSP &module_sp, WritableDataBufferSP data_sp,
@@ -223,22 +189,6 @@ bool ObjectFileAIXCore::MagicBytesMatch(DataBufferSP &data_sp,
 }
 
 bool ObjectFileAIXCore::ParseHeader() {
-#if 0
-    ModuleSP module_sp(GetModule());
-  if (module_sp) {
-    std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
-    m_sect_headers.clear();
-    lldb::offset_t offset = 0;
-
-    if (ParseXCOFFHeader(m_data, &offset, m_xcoff_header)) {
-      m_data.SetAddressByteSize(GetAddressByteSize());
-      if (m_xcoff_header.auxhdrsize > 0)
-        ParseXCOFFOptionalHeader(m_data, &offset);
-      ParseSectionHeaders(offset);
-    }
-    return true;
-  }
-#endif
 
   return false;
 }
@@ -253,74 +203,13 @@ bool ObjectFileAIXCore::ParseAIXCoreHeader(lldb_private::DataExtractor &data,
 bool ObjectFileAIXCore::SetLoadAddress(Target &target, lldb::addr_t value,
                                    bool value_is_offset) {
   bool changed = false;
-#if 0
-  ModuleSP module_sp = GetModule();
-  if (module_sp) {
-    size_t num_loaded_sections = 0;
-    SectionList *section_list = GetSectionList();
-    if (section_list) {
-      const size_t num_sections = section_list->GetSize();
-      size_t sect_idx = 0;
-
-      for (sect_idx = 0; sect_idx < num_sections; ++sect_idx) {
-        // Iterate through the object file sections to find all of the sections
-        // that have SHF_ALLOC in their flag bits.
-        SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
-        if (section_sp && !section_sp->IsThreadSpecific()) {
-          bool use_offset = false;
-          if (strcmp(section_sp->GetName().AsCString(), ".text") == 0 ||
-              strcmp(section_sp->GetName().AsCString(), ".data") == 0 ||
-              strcmp(section_sp->GetName().AsCString(), ".bss") == 0)
-            use_offset = true;
-
-          if (target.GetSectionLoadList().SetSectionLoadAddress(
-                  section_sp, (use_offset ?
-                  (section_sp->GetFileOffset() + value) : (section_sp->GetFileAddress() + value))))
-            ++num_loaded_sections;
-        }
-      }
-      changed = num_loaded_sections > 0;
-    }
-  }
-#endif
   return changed;
 }
 
 bool ObjectFileAIXCore::SetLoadAddressByType(Target &target, lldb::addr_t value,
                                    bool value_is_offset, int type_id) {
   bool changed = false;
-#if 0
-  ModuleSP module_sp = GetModule();
-  if (module_sp) {
-    size_t num_loaded_sections = 0;
-    SectionList *section_list = GetSectionList();
-    if (section_list) {
-      const size_t num_sections = section_list->GetSize();
-      size_t sect_idx = 0;
-
-      for (sect_idx = 0; sect_idx < num_sections; ++sect_idx) {
-        // Iterate through the object file sections to find all of the sections
-        // that have SHF_ALLOC in their flag bits.
-        SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
-        if (type_id == 1 && section_sp && strcmp(section_sp->GetName().AsCString(), ".text") == 0) {
-          if (!section_sp->IsThreadSpecific()) {
-            if (target.GetSectionLoadList().SetSectionLoadAddress(
-                    section_sp, section_sp->GetFileOffset() + value))
-              ++num_loaded_sections;
-          }
-        } else if (type_id == 2 && section_sp && strcmp(section_sp->GetName().AsCString(), ".data") == 0) {
-          if (!section_sp->IsThreadSpecific()) {
-            if (target.GetSectionLoadList().SetSectionLoadAddress(
-                    section_sp, section_sp->GetFileAddress() + value))
-              ++num_loaded_sections;
-          }
-        }
-      }
-      changed = num_loaded_sections > 0;
-    }
-  }
   return changed;
-#endif
 }
 
 ByteOrder ObjectFileAIXCore::GetByteOrder() const {
