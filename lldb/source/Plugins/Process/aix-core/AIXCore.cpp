@@ -20,7 +20,7 @@ using namespace lldb_private;
 
 AIXCore64Header::AIXCore64Header() { memset(this, 0, sizeof(AIXCore64Header)); }
 
-bool AIXCore64Header::Parse(lldb_private::DataExtractor &data,
+bool AIXCore64Header::ParseCoreHeader(lldb_private::DataExtractor &data,
                             lldb::offset_t *offset) {
 
     Log *log = GetLog(LLDBLog::Process);
@@ -69,4 +69,12 @@ bool AIXCore64Header::Parse(lldb_private::DataExtractor &data,
 c_datasize);
 return true;
 
+}
+        
+
+llvm::Error AIXCore64Header::ParseCoreSegments()
+{
+  //  const ArchSpec &arch = GetArchitecture();
+ //   ThreadData thread_data;
+ //   const lldb_private::UnixSignals &unix_signals = *GetUnixSignals();
 }

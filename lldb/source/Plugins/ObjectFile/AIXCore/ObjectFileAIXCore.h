@@ -19,6 +19,7 @@
 #include "lldb/Utility/UUID.h"
 #include "lldb/lldb-private.h"
 #include "llvm/Object/XCOFFObjectFile.h"
+#include "Plugins/Process/aix-core/AIXCore.h"
 
 /// \class ObjectFileAIXCore
 /// Generic AIX CORE object file reader.
@@ -124,6 +125,7 @@ public:
                 lldb::DataBufferSP header_data_sp,
                 const lldb::ProcessSP &process_sp, lldb::addr_t header_addr);
 
+  AIXCORE::AIXCore64Header m_aixcore_header;
 protected:
 
   static bool ParseAIXCoreHeader(lldb_private::DataExtractor &data,
@@ -137,23 +139,10 @@ protected:
   MapFileDataWritable(const lldb_private::FileSpec &file, uint64_t Size,
                       uint64_t Offset);
   uint32_t ParseDependentModules();
-  /*bool ParseOptionalHeader(lldb_private::DataExtractor &data,
-                                lldb::offset_t *offset_ptr);
-  bool ParseSectionHeaders(uint32_t offset);
-
-  llvm::StringRef GetSectionName(const section_header_t &sect);
-  static lldb::SectionType GetSectionType(llvm::StringRef sect_name,
-                                          const section_header_t &sect);
-
-  typedef std::vector<section_header_t> SectionHeaderColl;*/
 
 private:
   bool CreateCoreBinary();
 
- /* xcoff_header_t m_xcoff_header;
-  xcoff_aux_header_t m_xcoff_aux_header;
-  SectionHeaderColl m_sect_headers;
-  std::unique_ptr<llvm::object::XCOFFObjectFile> m_binary;*/
   lldb_private::Address m_entry_point_address;
   std::optional<lldb_private::FileSpecList> m_deps_filespec;
   std::map<std::string, std::vector<std::string>> m_deps_base_members;

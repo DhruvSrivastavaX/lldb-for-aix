@@ -77,7 +77,7 @@ lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
           AIXCORE::AIXCore64Header aixcore_header;
           DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
           lldb::offset_t data_offset = 0;
-          if(aixcore_header.Parse(data, &data_offset)) {
+          if(aixcore_header.ParseCoreHeader(data, &data_offset)) {
               //if AIX header
               process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
                       *crash_file);
@@ -151,6 +151,8 @@ Status ProcessAIXCore::DoLoadCore() {
   }
     LLDB_LOGF(log, "DoLoadCore Called core object created ");
 
+    //core->m_aixcore_header->ParseCoreHeader();
+    //core->m_aixcore_header->ParseCoreSegments();
     ArchSpec arch(m_core_module_sp->GetArchitecture());
 
     ArchSpec target_arch = GetTarget().GetArchitecture();
@@ -158,6 +160,14 @@ Status ProcessAIXCore::DoLoadCore() {
     target_arch.MergeFrom(core_arch);
     GetTarget().SetArchitecture(target_arch);
     LLDB_LOGF(log,"Checking type %s", (m_core_module_sp->GetArchitecture()).GetArchitectureName());
+    lldb::ModuleSP exe_module_sp = GetTarget().GetExecutableModule();
+    if (!exe_module_sp) {
+        //check if entires are filled
+        ModuleSpec exe_module_spec;
+        exe_module_spec.GetArchitecture() = arch;
+        exe_module_sp = GetTarget().GetOrCreateModule(exe_module_spec, true);
+        GetTarget().SetExecutableModule(exe_module_sp, eLoadDependentsNo);
+    }
     /* llvm::ArrayRef<elf::ELFProgramHeader> segments = core->ProgramHeaders();
   if (segments.size() == 0) {
     error = Status::FromErrorString("core file has no segments");

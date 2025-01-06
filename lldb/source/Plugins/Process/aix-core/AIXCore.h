@@ -60,8 +60,9 @@ namespace AIXCORE {
 
         AIXCore64Header();
 
-        bool Parse(lldb_private::DataExtractor &data,
-                lldb::offset_t *offset); 
+        bool ParseCoreHeader(lldb_private::DataExtractor &data,
+                lldb::offset_t *offset);
+        llvm::Error ParseCoreSegments();
 
     };
 
