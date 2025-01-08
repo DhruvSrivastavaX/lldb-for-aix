@@ -11,8 +11,6 @@
 
 #include "lldb/Host/posix/HostInfoPosix.h"
 #include "lldb/Utility/FileSpec.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/VersionTuple.h"
 
 namespace lldb_private {
 
@@ -23,13 +21,8 @@ public:
   static void Initialize(SharedLibraryDirectoryHelper *helper = nullptr);
   static void Terminate();
 
-  static llvm::StringRef GetDistributionId();
   static FileSpec GetProgramFileSpec();
-
-protected:
-  static void ComputeHostArchitectureSupport(ArchSpec &arch_32,
-                                             ArchSpec &arch_64);
 };
-}
+} // namespace lldb_private
 
-#endif
+#endif // LLDB_HOST_AIX_HOSTINFOAIX_H_
