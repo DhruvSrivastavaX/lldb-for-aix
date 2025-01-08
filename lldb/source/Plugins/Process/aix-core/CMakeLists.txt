@@ -1,6 +1,7 @@
 add_lldb_library(lldbPluginProcessAIXCore PLUGIN
   ProcessAIXCore.cpp
   AIXCore.cpp
+  ThreadAIXCore.cpp
 
   LINK_LIBS
     lldbCore

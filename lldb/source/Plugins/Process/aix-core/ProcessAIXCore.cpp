@@ -28,8 +28,9 @@
 #include "llvm/Support/Threading.h"
 #include "Plugins/ObjectFile/AIXCore/ObjectFileAIXCore.h"
 
-#include "AIXCore.h"
 #include "ProcessAIXCore.h"
+#include "AIXCore.h"
+#include "ThreadAIXCore.h"
 
 using namespace lldb_private;
 
@@ -134,6 +135,23 @@ bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
 
 }
 
+ArchSpec ProcessAIXCore::GetArchitecture() {
+  ArchSpec arch = m_core_module_sp->GetObjectFile()->GetArchitecture();
+
+  ArchSpec target_arch = GetTarget().GetArchitecture();
+  arch.MergeFrom(target_arch);
+  return arch;
+}
+
+void ProcessAIXCore::ParseAIXCoreFile() {
+    const ArchSpec &arch = GetArchitecture();
+    ThreadData thread_data;
+    const lldb_private::UnixSignals &unix_signals = *GetUnixSignals();
+    AIXSigInfo siginfo;
+    siginfo.Parse(m_aixcore_header, arch, unix_signals);
+    thread_data.siginfo = siginfo;
+}
+
 // Process Control
 Status ProcessAIXCore::DoLoadCore() {
   Status error;
@@ -144,14 +162,31 @@ Status ProcessAIXCore::DoLoadCore() {
     return error;
   }
 
-  ObjectFileAIXCore *core = (ObjectFileAIXCore *)(m_core_module_sp->GetObjectFile());
-  if (core == nullptr) {
+ // ObjectFileAIXCore *core = (ObjectFileAIXCore *)(m_core_module_sp->GetObjectFile());
+  FileSpec file = m_core_module_sp->GetObjectFile()->GetFileSpec();
+  if (file) {
+          const size_t header_size = sizeof(AIXCORE::AIXCore64Header);
+          LLDB_LOGF(log, "Core Header Size: %zu", header_size);
+          auto data_sp = FileSystem::Instance().CreateDataBuffer(
+                  file.GetPath(), header_size, 0);
+          LLDB_LOGF(log, "Core file path: %s", 
+                  file.GetPath().c_str());
+          if (data_sp && data_sp->GetByteSize() == header_size) {
+          /* Add some magic number like check too */
+          DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
+          lldb::offset_t data_offset = 0;
+          m_aixcore_header.ParseCoreHeader(data, &data_offset);
+           }
+       }
+  /*if (core == nullptr) {
     error = Status::FromErrorString("invalid core object file");
     return error;
-  }
+  }*/
     LLDB_LOGF(log, "DoLoadCore Called core object created ");
 
-    //core->m_aixcore_header->ParseCoreHeader();
+    m_thread_data_valid = true;
+    ParseAIXCoreFile();
+    //core->m_aixcore_header.ParseCoreHeader();
     //core->m_aixcore_header->ParseCoreSegments();
     ArchSpec arch(m_core_module_sp->GetArchitecture());
 

@@ -4,13 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// Notes about Linux Process core dumps:
-//  1) Linux core dump is stored as AIX file.
-//  2) The AIX file's PT_NOTE and PT_LOAD segments describes the program's
-//     address space and thread contexts.
-//  3) PT_NOTE segment contains note entries which describes a thread context.
-//  4) PT_LOAD segment describes a valid contiguous range of process address
-//     space.
+// Notes about AIX Process core dumps:
+//
 //===----------------------------------------------------------------------===//
 
 #ifndef LLDB_SOURCE_PLUGINS_PROCESS_AIX_CORE_PROCESSAIXCORE_H
@@ -21,6 +16,9 @@
 
 #include "lldb/Target/PostMortemProcess.h"
 #include "lldb/Utility/Status.h"
+#include "lldb/Target/Process.h"
+#include "AIXCore.h"
+#include "ThreadAIXCore.h"
 
 struct ThreadData;
 
@@ -75,6 +73,8 @@ public:
   size_t DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
           lldb_private::Status &error) override; 
 
+  AIXCORE::AIXCore64Header m_aixcore_header;
+  void ParseAIXCoreFile();
 protected:
 private:
   lldb::ModuleSP m_core_module_sp;
@@ -82,6 +82,8 @@ private:
 
   // True if m_thread_contexts contains valid entries
   bool m_thread_data_valid = false;
+
+  std::vector<ThreadData> m_thread_data;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_PROCESS_AIX_CORE_PROCESSAIXCORE_H
