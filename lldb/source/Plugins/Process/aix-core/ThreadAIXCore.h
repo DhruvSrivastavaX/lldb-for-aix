@@ -162,7 +162,7 @@ protected:
   lldb::RegisterContextSP m_thread_reg_ctx_sp;
 
   lldb_private::DataExtractor m_gpregset_data;
-//  std::vector<lldb_private::CoreNote> m_notes;
+  std::vector<lldb_private::CoreNote> m_notes;
   AIXSigInfo m_siginfo;
 
   bool CalculateStopInfo() override;

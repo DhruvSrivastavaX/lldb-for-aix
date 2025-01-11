@@ -150,6 +150,7 @@ void ProcessAIXCore::ParseAIXCoreFile() {
     AIXSigInfo siginfo;
     siginfo.Parse(m_aixcore_header, arch, unix_signals);
     thread_data.siginfo = siginfo;
+    m_thread_data.push_back(thread_data);
 }
 
 // Process Control
@@ -213,7 +214,14 @@ Status ProcessAIXCore::DoLoadCore() {
 
 bool ProcessAIXCore::DoUpdateThreadList(ThreadList &old_thread_list,
                                         ThreadList &new_thread_list) 
-{ return false; } 
+{
+    m_thread_data[0].tid = 123456; m_thread_data[0].name = "thread-name";
+    const ThreadData &td = m_thread_data[0];
+    lldb::ThreadSP thread_sp(new ThreadAIXCore(*this, td));
+    new_thread_list.AddThread(thread_sp);
+    return true;
+    //return false;
+} 
 
 void ProcessAIXCore::RefreshStateAfterStop() {}
 
