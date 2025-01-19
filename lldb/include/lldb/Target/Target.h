@@ -522,6 +522,7 @@ public:
     eBroadcastBitSymbolsChanged = (1 << 5),
   };
 
+
   // These two functions fill out the Broadcaster interface:
 
   static llvm::StringRef GetStaticBroadcasterClass();
@@ -1151,9 +1152,13 @@ public:
                              Address &pointer_addr,
                              bool force_live_memory = false);
 
-  SectionLoadList &GetSectionLoadList() {
-    return m_section_load_history.GetCurrentSectionLoadList();
-  }
+  bool HasLoadedSections();
+
+  lldb::addr_t GetSectionLoadAddress(const lldb::SectionSP &section_sp);
+
+  void ClearSectionLoadList();
+
+  void DumpSectionLoadList(Stream &s);
 
   static Target *GetTargetFromContexts(const ExecutionContext *exe_ctx_ptr,
                                        const SymbolContext *sc_ptr);
@@ -1218,7 +1223,8 @@ public:
   bool ResolveFileAddress(lldb::addr_t load_addr, Address &so_addr);
 
   bool ResolveLoadAddress(lldb::addr_t load_addr, Address &so_addr,
-                          uint32_t stop_id = SectionLoadHistory::eStopIDNow);
+                          uint32_t stop_id = SectionLoadHistory::eStopIDNow,
+                          bool allow_section_end = false);
 
   bool SetSectionLoadAddress(const lldb::SectionSP &section,
                              lldb::addr_t load_addr,
@@ -1639,6 +1645,10 @@ public:
 
   TargetStats &GetStatistics() { return m_stats; }
 
+public:
+  SectionLoadList &GetSectionLoadListPublic() {
+    return GetSectionLoadList();
+  }
 protected:
   /// Construct with optional file and arch.
   ///
@@ -1666,6 +1676,10 @@ protected:
 
   Target(const Target &) = delete;
   const Target &operator=(const Target &) = delete;
+
+  SectionLoadList &GetSectionLoadList() {
+    return m_section_load_history.GetCurrentSectionLoadList();
+  }
 };
 
 } // namespace lldb_private
