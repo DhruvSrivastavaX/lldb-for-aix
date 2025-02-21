@@ -38,7 +38,6 @@ constexpr int MapAnonymous = 0x10;
 static_assert(MapVariable == MAP_VARIABLE);
 static_assert(MapPrivate == MAP_PRIVATE);
 static_assert(MapAnonymous == MAP_ANONYMOUS);
->>>>>>> upstream/main
 #endif
 
 using namespace lldb;
