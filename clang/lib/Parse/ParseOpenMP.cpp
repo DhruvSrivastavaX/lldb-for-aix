@@ -2548,9 +2548,10 @@ StmtResult Parser::ParseOpenMPExecutableDirective(
     }
   }
 
-  if (DKind == OMPD_tile && !SeenClauses[unsigned(OMPC_sizes)]) {
+  if ((DKind == OMPD_tile || DKind == OMPD_stripe) &&
+      !SeenClauses[unsigned(OMPC_sizes)]) {
     Diag(Loc, diag::err_omp_required_clause)
-        << getOpenMPDirectiveName(OMPD_tile) << "sizes";
+        << getOpenMPDirectiveName(DKind) << "sizes";
   }
 
   StmtResult AssociatedStmt;
@@ -2758,6 +2759,19 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
       OpenMPClauseKind CKind = Tok.isAnnotation()
                                    ? OMPC_unknown
                                    : getOpenMPClauseKind(PP.getSpelling(Tok));
+      // Check if the clause is unrecognized.
+      if (getLangOpts().OpenMP < 52 &&
+          (CKind == OMPC_unknown || CKind == OMPC_otherwise)) {
+        Diag(Tok, diag::err_omp_unknown_clause)
+            << PP.getSpelling(Tok) << "metadirective";
+      }
+      if (getLangOpts().OpenMP >= 52 && CKind == OMPC_unknown) {
+        Diag(Tok, diag::err_omp_unknown_clause)
+            << PP.getSpelling(Tok) << "metadirective";
+      }
+      if (CKind == OMPC_default && getLangOpts().OpenMP >= 52) {
+        Diag(Tok, diag::warn_omp_default_deprecated);
+      }
       SourceLocation Loc = ConsumeToken();
 
       // Parse '('.
@@ -2782,6 +2796,13 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
           Diag(Tok, diag::err_omp_expected_colon) << "when clause";
           TPA.Commit();
           return Directive;
+        }
+      }
+      if (CKind == OMPC_otherwise) {
+        // Check for 'otherwise' keyword.
+        if (Tok.is(tok::identifier) &&
+            Tok.getIdentifierInfo()->getName() == "otherwise") {
+          ConsumeToken(); // Consume 'otherwise'
         }
       }
       // Skip Directive for now. We will parse directive in the second iteration
