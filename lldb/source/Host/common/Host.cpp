@@ -1,4 +1,4 @@
-
+//===-- Host.cpp ----------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,27 +11,29 @@
 #include <climits>
 #include <cstdlib>
 #include <sys/types.h>
-
 #ifndef _WIN32
 #include <dlfcn.h>
 #include <grp.h>
 #include <netdb.h>
 #include <pwd.h>
 #include <sys/stat.h>
-
-#ifndef _AIX
-#include <sys/syscall.h>
-#include <sys/wait.h>
-#endif
-
 #include <unistd.h>
-#include <spawn.h>
 #endif
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #include <mach/mach_init.h>
 #include <mach/mach_port.h>
+#endif
+
+#if defined(__linux__) || defined(__FreeBSD__) ||                              \
+    defined(__FreeBSD_kernel__) || defined(__APPLE__) ||                       \
+    defined(__NetBSD__) || defined(__OpenBSD__) || defined(__EMSCRIPTEN__)
+#if !defined(__ANDROID__)
+#include <spawn.h>
+#endif
+#include <sys/syscall.h>
+#include <sys/wait.h>
 #endif
 
 #if defined(__FreeBSD__)
@@ -514,6 +516,7 @@ static int dladdr(const void *ptr, Dl_info *dl)
 
 FileSpec Host::GetModuleFileSpecForHostAddress(const void *host_addr) {
   FileSpec module_filespec;
+#if !defined(__ANDROID__)
 #ifdef _AIX
   if (host_addr == reinterpret_cast<void *>(HostInfoBase::ComputeSharedLibraryDirectory)) {
     // FIXME: AIX dladdr return "lldb" for this case
@@ -524,7 +527,6 @@ FileSpec Host::GetModuleFileSpecForHostAddress(const void *host_addr) {
     }
   }
 #endif
-#if !defined(__ANDROID__)
   Dl_info info;
   if (::dladdr(host_addr, &info)) {
     if (info.dli_fname) {

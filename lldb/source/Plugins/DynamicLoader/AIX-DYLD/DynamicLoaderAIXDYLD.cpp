@@ -41,6 +41,7 @@ DynamicLoaderAIXDYLD::DynamicLoaderAIXDYLD(Process *process)
 DynamicLoaderAIXDYLD::~DynamicLoaderAIXDYLD() = default;
 
 void DynamicLoaderAIXDYLD::Initialize() {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                 GetPluginDescriptionStatic(), CreateInstance);
 }
@@ -48,12 +49,14 @@ void DynamicLoaderAIXDYLD::Initialize() {
 void DynamicLoaderAIXDYLD::Terminate() {}
 
 llvm::StringRef DynamicLoaderAIXDYLD::GetPluginDescriptionStatic() {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   return "Dynamic loader plug-in that watches for shared library "
          "loads/unloads in AIX processes.";
 }
 
 DynamicLoader *DynamicLoaderAIXDYLD::CreateInstance(Process *process,
                                                         bool force) {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   bool should_create = force;
   if (!should_create) {
     const llvm::Triple &triple_ref =
@@ -71,6 +74,7 @@ DynamicLoader *DynamicLoaderAIXDYLD::CreateInstance(Process *process,
 void DynamicLoaderAIXDYLD::OnLoadModule(lldb::ModuleSP module_sp,
                                             const ModuleSpec module_spec,
                                             lldb::addr_t module_addr) {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 
   // Resolve the module unless we already have one.
   if (!module_sp) {
@@ -89,6 +93,7 @@ void DynamicLoaderAIXDYLD::OnLoadModule(lldb::ModuleSP module_sp,
 }
 
 void DynamicLoaderAIXDYLD::OnUnloadModule(lldb::addr_t module_addr) {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   Address resolved_addr;
   if (!m_process->GetTarget().ResolveLoadAddress(module_addr, resolved_addr))
     return;
@@ -104,6 +109,7 @@ void DynamicLoaderAIXDYLD::OnUnloadModule(lldb::addr_t module_addr) {
 }
 
 lldb::addr_t DynamicLoaderAIXDYLD::GetLoadAddress(ModuleSP executable) {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   // First, see if the load address is already cached.
   auto it = m_loaded_modules.find(executable);
   if (it != m_loaded_modules.end() && it->second != LLDB_INVALID_ADDRESS)
@@ -134,11 +140,13 @@ lldb::addr_t DynamicLoaderAIXDYLD::GetLoadAddress(ModuleSP executable) {
 bool DynamicLoaderAIXDYLD::NotifyBreakpointHit(
     void *baton, StoppointCallbackContext *context, lldb::user_id_t break_id,
     lldb::user_id_t break_loc_id) {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 }
 
 
 void DynamicLoaderAIXDYLD::ResolveExecutableModule(
     lldb::ModuleSP &module_sp) {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   Log *log = GetLog(LLDBLog::DynamicLoader);
 
   if (m_process == nullptr)
@@ -157,6 +165,7 @@ void DynamicLoaderAIXDYLD::ResolveExecutableModule(
   }
 
   int32long64_t pid = m_process->GetID();
+std::cout << "pid:" << pid <<__FUNCTION__ << std::endl;
   char cwd[PATH_MAX], resolved_path[PATH_MAX];
   std::string executable_name;
   bool path_resolved = false;
@@ -228,22 +237,84 @@ void DynamicLoaderAIXDYLD::ResolveExecutableModule(
   target.SetExecutableModule(module_sp, eLoadDependentsNo);
 }
 
+bool DynamicLoaderAIXDYLD::IsCoreFile() const {
+  return !m_process->IsLiveDebugSession();
+}
+
+void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
+        uint64_t loader_offset, uint64_t loader_size ) {
+    struct ld_info ldinfo[64];
+    static char *buffer = (char *)malloc(loader_size);
+    char *buffer_complete;
+    Log *log = GetLog(LLDBLog::DynamicLoader);
+    LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s() %d", __FUNCTION__, __LINE__);
+    LLDB_LOGF(log, "Loader offset %d size %d", loader_offset, loader_size);
+    ByteOrder byteorder = data.GetByteOrder();
+    int i = 0;
+    data.ExtractBytes(loader_offset, loader_size, eByteOrderBig, buffer);
+    LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s() %d", __FUNCTION__, __LINE__);
+    buffer_complete = buffer + loader_size;
+    ldinfo[0].ldinfo_next = 1;
+    while (i < 7) {
+        struct ld_info *ptr = (struct ld_info *)buffer;
+        ldinfo[i].ldinfo_next = ptr->ldinfo_next;
+        ldinfo[i].ldinfo_flags = ptr->ldinfo_flags;
+        ldinfo[i].ldinfo_core = ptr->ldinfo_core;
+        ldinfo[i].ldinfo_textorg = ptr->ldinfo_textorg;
+        ldinfo[i].ldinfo_textsize = ptr->ldinfo_textsize;
+        ldinfo[i].ldinfo_dataorg = ptr->ldinfo_dataorg;
+        ldinfo[i].ldinfo_datasize = ptr->ldinfo_datasize;
+        //ldinfo[i].ldinfo_filename = ptr->ldinfo_filename;
+        char *filename = &ptr->ldinfo_filename[0];
+        strcpy(ldinfo[i].ldinfo_filename, filename);
+        //ldinfo[i].ldinfo_filename = &filename;
+        LLDB_LOGF(log, "i %d, ldinfo_next :%x", i, ldinfo[i].ldinfo_next);
+        LLDB_LOGF(log, "ldinfo_filename :%s", ldinfo[i].ldinfo_filename);
+        LLDB_LOGF(log, "ldinfo_textsize :%x", ldinfo[i].ldinfo_textsize);
+        buffer += ptr->ldinfo_next;
+        struct ld_info *ptr2 = &(ldinfo[i]);
+        bool skip_current = true;
+        char *pathName = ptr2->ldinfo_filename;
+        char pathWithMember[128] = {0};
+        sprintf(pathWithMember, "%s", pathName);
+        FileSpec file(pathWithMember);
+        ModuleSpec module_spec(file, m_process->GetTarget().GetArchitecture());
+        if (ModuleSP module_sp = m_process->GetTarget().GetOrCreateModule(module_spec, true /* notify */)) {
+            UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr2->ldinfo_textorg, false, 1);
+            UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr2->ldinfo_dataorg, false, 2);
+            // FIXME: .tdata, .bss
+        }
+        if (ptr2->ldinfo_next == 0) {
+            ptr2 = nullptr;
+        } 
+        i++;
+    }
+}
+
 void DynamicLoaderAIXDYLD::DidAttach() {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   Log *log = GetLog(LLDBLog::DynamicLoader);
   LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
 
   ModuleSP executable = GetTargetExecutable();
   ResolveExecutableModule(executable);
+std::cout << "PATH "<< executable->GetFileSpec().GetPath().c_str() << std::endl;
 
   if (!executable.get())
     return;
-  LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
+  LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s(): %d", __FUNCTION__, __LINE__);
 
   // Try to fetch the load address of the file from the process, since there
   // could be randomization of the load address.
   lldb::addr_t load_addr = GetLoadAddress(executable);
-  if (load_addr == LLDB_INVALID_ADDRESS)
+  LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%d()",load_addr);
+  LLDB_LOGF(log, "IsCore :() %d",IsCoreFile());
+  if (!IsCoreFile() && load_addr == LLDB_INVALID_ADDRESS)
     return;
+  else {
+      LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s() %d", __FUNCTION__, __LINE__);
+      //FillCoreLoaderData();
+  }
 
   // Request the process base address.
   lldb::addr_t image_base = m_process->GetImageInfoAddress();
@@ -301,6 +372,7 @@ void DynamicLoaderAIXDYLD::DidAttach() {
 }
 
 void DynamicLoaderAIXDYLD::DidLaunch() {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   Log *log = GetLog(LLDBLog::DynamicLoader);
   LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
 
@@ -361,11 +433,14 @@ void DynamicLoaderAIXDYLD::DidLaunch() {
 #endif
 }
 
-Status DynamicLoaderAIXDYLD::CanLoadImage() { return Status(); }
+Status DynamicLoaderAIXDYLD::CanLoadImage() { 
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
+    return Status(); }
 
 ThreadPlanSP
 DynamicLoaderAIXDYLD::GetStepThroughTrampolinePlan(Thread &thread,
                                                        bool stop) {
+std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   //FIXME
   return ThreadPlanSP();
 }

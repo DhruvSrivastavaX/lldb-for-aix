@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <mutex>
+#include <iostream>
 
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -27,6 +28,7 @@
 
 #include "llvm/Support/Threading.h"
 #include "Plugins/ObjectFile/AIXCore/ObjectFileAIXCore.h"
+#include "Plugins/DynamicLoader/AIX-DYLD/DynamicLoaderAIXDYLD.h"
 
 #include "ProcessAIXCore.h"
 #include "AIXCore.h"
@@ -143,6 +145,16 @@ ArchSpec ProcessAIXCore::GetArchitecture() {
   return arch;
 }
 
+lldb_private::DynamicLoader *ProcessAIXCore::GetDynamicLoader() {
+  if (m_dyld_up.get() == nullptr) {
+    std::cout << "ProcessAIXCore::" <<__FUNCTION__ << " Dynamic Loader null " << std::endl;
+    m_dyld_up.reset(DynamicLoader::FindPlugin(
+        this, DynamicLoaderAIXDYLD::GetPluginNameStatic()));
+  }
+    std::cout << "ProcessAIXCore::" <<__FUNCTION__ << std::endl;
+  return m_dyld_up.get();
+}
+
 void ProcessAIXCore::ParseAIXCoreFile() {
     const ArchSpec &arch = GetArchitecture();
     ThreadData thread_data;
@@ -150,6 +162,17 @@ void ProcessAIXCore::ParseAIXCoreFile() {
     AIXSigInfo siginfo;
     siginfo.Parse(m_aixcore_header, arch, unix_signals);
     thread_data.siginfo = siginfo;
+    SetID(m_aixcore_header.c_user.process.pi_pid);
+    thread_data.name.assign (m_aixcore_header.c_user.process.pi_comm,
+            strnlen (m_aixcore_header.c_user.process.pi_comm,
+                sizeof (m_aixcore_header.c_user.process.pi_comm)));
+    lldb::DataBufferSP data_buffer_sp(new lldb_private::DataBufferHeap(sizeof(m_aixcore_header.c_flt.context), 0));
+    memcpy(static_cast<void *>(const_cast<uint8_t *>(data_buffer_sp->GetBytes())),
+            &m_aixcore_header.c_flt.context, sizeof(m_aixcore_header.c_flt.context));
+    lldb_private::DataExtractor data(data_buffer_sp, lldb::eByteOrderBig, 8);
+
+    thread_data.gpregset = DataExtractor(data, 0, sizeof(m_aixcore_header.c_flt.context));
+    std::cout << "ProcessAIXCore::" <<__FUNCTION__ << " c_signo " << thread_data.siginfo.si_signo << std::endl;
     m_thread_data.push_back(thread_data);
 }
 
@@ -169,14 +192,17 @@ Status ProcessAIXCore::DoLoadCore() {
           const size_t header_size = sizeof(AIXCORE::AIXCore64Header);
           LLDB_LOGF(log, "Core Header Size: %zu", header_size);
           auto data_sp = FileSystem::Instance().CreateDataBuffer(
-                  file.GetPath(), header_size, 0);
+                  file.GetPath(), -1, 0);
           LLDB_LOGF(log, "Core file path: %s", 
                   file.GetPath().c_str());
-          if (data_sp && data_sp->GetByteSize() == header_size) {
+          if (data_sp && data_sp->GetByteSize() != 0) {
           /* Add some magic number like check too */
           DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
           lldb::offset_t data_offset = 0;
           m_aixcore_header.ParseCoreHeader(data, &data_offset);
+          auto dyld = static_cast<DynamicLoaderAIXDYLD *>(GetDynamicLoader());
+          dyld->FillCoreLoaderData(data, m_aixcore_header.c_loader,
+                  m_aixcore_header.c_lsize);
            }
        }
   /*if (core == nullptr) {
@@ -201,6 +227,8 @@ Status ProcessAIXCore::DoLoadCore() {
         //check if entires are filled
         ModuleSpec exe_module_spec;
         exe_module_spec.GetArchitecture() = arch;
+        exe_module_spec.GetFileSpec().SetFile(m_aixcore_header.c_user.process.pi_comm,
+                FileSpec::Style::native);
         exe_module_sp = GetTarget().GetOrCreateModule(exe_module_spec, true);
         GetTarget().SetExecutableModule(exe_module_sp, eLoadDependentsNo);
     }
@@ -215,7 +243,7 @@ Status ProcessAIXCore::DoLoadCore() {
 bool ProcessAIXCore::DoUpdateThreadList(ThreadList &old_thread_list,
                                         ThreadList &new_thread_list) 
 {
-    m_thread_data[0].tid = 123456; m_thread_data[0].name = "thread-name";
+    //m_thread_data[0].tid = 123456; m_thread_data[0].name = "thread-name";
     const ThreadData &td = m_thread_data[0];
     lldb::ThreadSP thread_sp(new ThreadAIXCore(*this, td));
     new_thread_list.AddThread(thread_sp);
@@ -225,7 +253,24 @@ bool ProcessAIXCore::DoUpdateThreadList(ThreadList &old_thread_list,
 
 void ProcessAIXCore::RefreshStateAfterStop() {}
 
+// Process Memory
+size_t ProcessAIXCore::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
+                                  Status &error) {
+  if (lldb::ABISP abi_sp = GetABI())
+    addr = abi_sp->FixAnyAddress(addr);
+  std::cout << "ProcessAIXCore::" <<__FUNCTION__ << std::endl;
+
+  // Don't allow the caching that lldb_private::Process::ReadMemory does since
+  // in core files we have it all cached our our core file anyway.
+  return DoReadMemory(addr, buf, size, error);
+}
+
 size_t ProcessAIXCore::DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
                                     Status &error) { return 0; }
+
+Status ProcessAIXCore::DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                                              MemoryRegionInfo &region_info) {
+    return Status();
+}
 
 Status ProcessAIXCore::DoDestroy() { return Status(); }

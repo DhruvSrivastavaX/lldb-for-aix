@@ -20,6 +20,7 @@
 #include "Plugins/Process/Utility/RegisterContextPOSIX_ppc64le.h"
 #include "Plugins/Process/Utility/RegisterInfoPOSIX_ppc64le.h"
 #include "Plugins/Process/elf-core/RegisterContextPOSIXCore_powerpc.h"
+#include "RegisterContextCoreAIX_ppc64.h"
 
 #include "ProcessAIXCore.h"
 #include "AIXCore.h"
@@ -69,31 +70,17 @@ ThreadAIXCore::CreateRegisterContextForFrame(StackFrame *frame) {
     ArchSpec arch = process->GetArchitecture();
     RegisterInfoInterface *reg_interface = nullptr;
 
-   // switch (arch.GetTriple().getOS()) {
-     //   case llvm::Triple::AIX: {
-       // switch(arch.GetMachine()) {
-         //   case llvm::Triple::ppc64:
-              //  reg_interface = new RegisterContextPOSIX_powerpc(arch);
-           //     break;
-          //  default:
-           //     break;
-      //  }
-       // break;
-     // }
-     //  default:
-      //  break;
-  //  }
     switch (arch.GetMachine()) {
         case llvm::Triple::ppc64:
             reg_interface = new RegisterInfoPOSIX_ppc64le(arch);
-            m_thread_reg_ctx_sp = std::make_shared<RegisterContextCorePOSIX_powerpc>(
-                    *this, reg_interface, m_gpregset_data, m_notes);
+            m_thread_reg_ctx_sp = std::make_shared<RegisterContextCoreAIX_ppc64>(
+                    *this, reg_interface, m_gpregset_data);
             break;
         default:
             break;
     }
     reg_ctx_sp = m_thread_reg_ctx_sp;
-  std::cout << "ThreadCore::" <<__FUNCTION__ << "IF RegisterContext "<<std::endl;
+  std::cout << "ThreadCore::" <<__FUNCTION__ << " IF RegisterContext "<<std::endl;
     } else {
         reg_ctx_sp = GetUnwinder().CreateRegisterContextForFrame(frame);
   std::cout << "ThreadCore::" <<__FUNCTION__ << "ELSE RegisterContext "<<std::endl;
@@ -111,9 +98,8 @@ bool ThreadAIXCore::CalculateStopInfo() {
   if (!unix_signals_sp)
     return false;
 
-  m_siginfo.si_signo = 11; // ******************************************
   const char *sig_description;
-  std::string description = "Random String";//m_siginfo.GetDescription(*unix_signals_sp);
+  std::string description = m_siginfo.GetDescription(*unix_signals_sp);
   if (description.empty())
     sig_description = nullptr;
   else
@@ -132,11 +118,19 @@ void AIXSigInfo::Parse(const AIXCORE::AIXCore64Header data, const ArchSpec &arch
     LLDB_LOGF(log, "c_signo: %x, c_flag: %x, c_entries: %x, c_version: %x",
             data.c_signo,
             data.c_flag, data.c_entries, data.c_version);
-    //si_signo = c_signo;
+    si_signo = data.c_signo;
 }
 
 AIXSigInfo::AIXSigInfo() { memset(this, 0, sizeof(AIXSigInfo)); }
 
 size_t AIXSigInfo::GetSize(const lldb_private::ArchSpec &arch) {
     return sizeof(AIXSigInfo);
+}
+
+std::string AIXSigInfo::GetDescription(
+    const lldb_private::UnixSignals &unix_signals) const {
+  std::cout << "AIXSigInfo::" <<__FUNCTION__ << std::endl;
+      return unix_signals.GetSignalDescription(si_signo, 0,
+                                              0x100000938 );
+
 }

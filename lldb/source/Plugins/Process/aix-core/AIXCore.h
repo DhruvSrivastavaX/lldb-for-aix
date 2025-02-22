@@ -12,7 +12,51 @@
 #include <cstring>
 #include <type_traits>
 
+#include <sys/types.h>
+#include <procinfo.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <sys/cred.h>
+
 namespace AIXCORE {
+
+
+struct __context64 {
+    // The data is arranged in order as filled by AIXCore.cpp in this coredump file
+    // so we have to fetch in that exact order, refer there. 
+    // But need to change
+    // the context structure in order according to Infos_ppc64
+        uint64_t           gpr[32];    /* 64-bit gprs */
+        unsigned long           iar;            /* msr */
+        unsigned long           msr;            /* iar */
+        unsigned long           origr3;            /* iar */
+        unsigned long           ctr;            /* CTR */
+        unsigned long           lr;             /* LR */
+        unsigned long           xer;            /* XER */
+        unsigned long           cr;             /* CR */
+        unsigned long           softe;             /* CR */
+        unsigned long           trap;             /* CR */
+        unsigned int            fpscr;          /* floating pt status reg */
+        unsigned int            fpscrx;         /* software ext to fpscr */
+        unsigned long           except[1];      /* exception address    */
+        double                  fpr[32];    /* floating pt regs     */
+        char                    fpeu;           /* floating pt ever used */
+        char                    fpinfo;         /* floating pt info     */
+        char                    fpscr24_31;     /* bits 24-31 of 64-bit FPSCR */
+        char                    pad[1];
+        int                     excp_type;      /* exception type       */
+};
+
+    struct ThreadContext64 {
+        struct thrdentry64 threadEntry;
+        struct __context64 context;
+    };
+
+    struct UserData {
+
+        struct procentry64_53 process;
+        unsigned long long reserved[16];
+    };
 
     struct AIXCore64Header {
 
@@ -56,13 +100,22 @@ namespace AIXCORE {
         uint64_t c_extproc;   /* Extended procentry64 information */
         uint64_t c_reserved[2];
 
-        //To add structs
+        struct ThreadContext64 c_flt;
+
+        struct UserData c_user;
 
         AIXCore64Header();
 
         bool ParseCoreHeader(lldb_private::DataExtractor &data,
                 lldb::offset_t *offset);
-        llvm::Error ParseCoreSegments();
+        bool ParseThreadContext(lldb_private::DataExtractor &data,
+                lldb::offset_t *offset);
+        bool ParseUserData(lldb_private::DataExtractor &data,
+                lldb::offset_t *offset);
+        bool ParseRegisterContext(lldb_private::DataExtractor &data,
+                lldb::offset_t *offset);
+        bool ParseLoaderData(lldb_private::DataExtractor &data,
+                lldb::offset_t *offset);
 
     };
 

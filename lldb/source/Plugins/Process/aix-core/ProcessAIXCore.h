@@ -66,9 +66,19 @@ public:
   lldb_private::Status DoLoadCore() override;
  
   bool DoUpdateThreadList(lldb_private::ThreadList &old_thread_list,
-          lldb_private::ThreadList &new_thread_list) override; 
+          lldb_private::ThreadList &new_thread_list) override;
 
-  void RefreshStateAfterStop() override; 
+  lldb_private::Status
+  DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+              lldb_private::MemoryRegionInfo &region_info) override;
+
+  void RefreshStateAfterStop() override;
+
+  lldb_private::DynamicLoader *GetDynamicLoader() override;
+
+  // Process Memory
+  size_t ReadMemory(lldb::addr_t addr, void *buf, size_t size,
+                    lldb_private::Status &error) override;
 
   size_t DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
           lldb_private::Status &error) override; 
