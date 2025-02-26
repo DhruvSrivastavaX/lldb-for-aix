@@ -11,18 +11,25 @@
 #include "lldb/Core/Section.h"
 #include <optional>
 
+#include "LogChannelDWARF.h"  
+
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::plugin::dwarf;
 
 static DWARFDataExtractor LoadSection(SectionList *section_list,
                                       SectionType section_type) {
+      Log *log = GetLog(DWARFLog::Lookups);                                 
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
+
   if (!section_list)
     return DWARFDataExtractor();
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
 
   auto section_sp = section_list->FindSectionByType(section_type, true);
   if (!section_sp)
     return DWARFDataExtractor();
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
 
   DWARFDataExtractor data;
   section_sp->GetSectionData(data);
@@ -99,6 +106,7 @@ const DWARFDataExtractor &DWARFContext::getOrLoadMacroData() {
 }
 
 const DWARFDataExtractor &DWARFContext::getOrLoadRangesData() {
+    Log *log = GetLog(DWARFLog::Lookups);
   return LoadOrGetSection(eSectionTypeDWARFDebugRanges, std::nullopt,
                           m_data_debug_ranges);
 }

@@ -27,6 +27,7 @@ llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
 lldb_private::getProcFile(::pid_t pid, const llvm::Twine &file) {
   Log *log = GetLog(LLDBLog::Host);
   std::string File = ("/proc/" + llvm::Twine(pid) + "/" + file).str();
+    LLDB_LOGF(log, "Failed to open %s: ", File.c_str());
   auto Ret = llvm::MemoryBuffer::getFileAsStream(File);
   if (!Ret)
     LLDB_LOG(log, "Failed to open {0}: {1}", File, Ret.getError().message());

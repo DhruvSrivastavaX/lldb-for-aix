@@ -270,6 +270,7 @@ NativeProcessAIX::Manager::Manager(MainLoop &mainloop)
   m_sigchld_handle = mainloop.RegisterSignal(
       SIGCHLD, [this](MainLoopBase &) { SigchldHandler(); }, status);
   assert(m_sigchld_handle && status.Success());
+
 }
 
 // Public Static Methods
@@ -327,8 +328,10 @@ llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
 NativeProcessAIX::Manager::Attach(
     lldb::pid_t pid, NativeProcessProtocol::NativeDelegate &native_delegate) { 
   Log *log = GetLog(POSIXLog::Process);
+  Log *log2 = GetLog(LLDBLog::Process);
   LLDB_LOG(log, "pid = {0:x}", pid);
-
+  LLDB_LOGF(log2,"NativeProcessAIX::Manager::Attach: %d",__LINE__);  
+   printf("NativeProcessAIX::Manager::Attach: %d",__LINE__);
   ProcessInstanceInfo Info;
   if (!Host::GetProcessInfo(pid, Info)) {
       return llvm::make_error<StringError>("Cannot get process architectrue",
@@ -2000,7 +2003,22 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     } else if (req == PT_WRITE_BLOCK) {
       ptrace64(req, pid, (long long)addr, (int)data_size, (int *)result);
     } else if (req == PT_ATTACH) {
-      ptrace64(req, pid, 0, 0, nullptr);
+      
+        static sigset_t signal_set;
+        sigemptyset (&signal_set);
+        sigaddset (&signal_set, SIGCHLD);
+        pthread_sigmask( SIG_BLOCK, &signal_set, NULL );
+        int ret = ptrace64(req, pid, 0, 0, nullptr);
+        pthread_sigmask( SIG_UNBLOCK, &signal_set, NULL );
+        /*  if(errno) {
+      //if(ret == -1) {
+          
+          sleep(1);
+     //     error = Status::FromErrno();
+     //     return error;
+          ptrace64(req, pid, 0, 0, nullptr);
+      }*/
+
     } else if (req == PT_WATCH) {
       ptrace64(req, pid, (long long)addr, (int)data_size, nullptr);
     } else if (req == PT_DETACH) {
@@ -2009,14 +2027,15 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
       assert(0 && "Not supported yet.");
     }
   } else {
-    assert(0 && "Not supported yet.");
+      assert(0 && "Not supported yet.");
   }
 
-  if (errno) {
-    error = Status::FromErrno();
-    ret = -1;
+  if(ret != 0) {
+      if (errno != 0) {
+          error = Status::FromErrno();
+          ret = -1;
+      }
   }
-
   LLDB_LOG(log, "ptrace({0}, {1}, {2}, {3}, {4})={5:x}", req, pid, addr, data,
            data_size, ret);
 

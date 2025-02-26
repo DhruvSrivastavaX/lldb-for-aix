@@ -884,7 +884,6 @@ Status ProcessGDBRemote::ConnectToDebugserver(llvm::StringRef connect_url) {
 void ProcessGDBRemote::DidLaunchOrAttach(ArchSpec &process_arch) {
   Log *log = GetLog(GDBRLog::Process);
   BuildDynamicRegisterInfo(false);
-
   // See if the GDB server supports qHostInfo or qProcessInfo packets. Prefer
   // qProcessInfo as it will be more specific to our process.
 
@@ -1081,14 +1080,23 @@ Status ProcessGDBRemote::DoAttachToProcessWithID(
   Status error;
 
   LLDB_LOGF(log, "ProcessGDBRemote::%s()", __FUNCTION__);
-
   // Clear out and clean up from any current state
   Clear();
   if (attach_pid != LLDB_INVALID_PROCESS_ID) {
     error = EstablishConnectionIfNeeded(attach_info);
     if (error.Success()) {
       m_gdb_comm.SetDetachOnError(attach_info.GetDetachOnError());
-
+   
+  LLDB_LOGF(log, "ProcessGDBRemote::%s() %d", __FUNCTION__,__LINE__);
+  StreamString packet;
+          m_gdb_comm.GetVAttachOrWaitSupported();
+          m_gdb_comm.GetCurrentProcessID(true);
+        /*    packet.PutCString("vAttach;"); 
+      auto data_sp =
+          std::make_shared<EventDataBytes>(packet.GetString());
+      m_async_broadcaster.BroadcastEvent(eBroadcastBitAsyncContinue, data_sp);
+       */   {
+  LLDB_LOGF(log, "ProcessGDBRemote::%s() %d", __FUNCTION__,__LINE__);
       char packet[64];
       const int packet_len =
           ::snprintf(packet, sizeof(packet), "vAttach;%" PRIx64, attach_pid);
@@ -1096,6 +1104,7 @@ Status ProcessGDBRemote::DoAttachToProcessWithID(
       auto data_sp =
           std::make_shared<EventDataBytes>(llvm::StringRef(packet, packet_len));
       m_async_broadcaster.BroadcastEvent(eBroadcastBitAsyncContinue, data_sp);
+        }
     } else
       SetExitStatus(-1, error.AsCString());
   }
@@ -3704,13 +3713,15 @@ thread_result_t ProcessGDBRemote::AsyncThread() {
             if (::strstr(continue_cstr, "vAttach") == nullptr)
               SetPrivateState(eStateRunning);
             StringExtractorGDBRemote response;
-
+            
+            LLDB_LOGF(log,"ProcessGDBRemote::%s %d",__FUNCTION__,__LINE__);  
             StateType stop_state =
                 GetGDBRemote().SendContinuePacketAndWaitForResponse(
                     *this, *GetUnixSignals(),
                     llvm::StringRef(continue_cstr, continue_cstr_len),
                     GetInterruptTimeout(), response);
 
+            LLDB_LOGF(log,"ProcessGDBRemote::%s %d",__FUNCTION__,__LINE__);  
             // We need to immediately clear the thread ID list so we are sure
             // to get a valid list of threads. The thread ID list might be
             // contained within the "response", or the stop reply packet that
@@ -3723,11 +3734,13 @@ thread_result_t ProcessGDBRemote::AsyncThread() {
             case eStateStopped:
             case eStateCrashed:
             case eStateSuspended:
+            LLDB_LOGF(log,"ProcessGDBRemote::%s %d",__FUNCTION__,__LINE__);  
               SetLastStopPacket(response);
               SetPrivateState(stop_state);
               break;
 
             case eStateExited: {
+            LLDB_LOGF(log,"ProcessGDBRemote::%s %d",__FUNCTION__,__LINE__);  
               SetLastStopPacket(response);
               ClearThreadIDList();
               response.SetFilePos(1);
@@ -3749,6 +3762,7 @@ thread_result_t ProcessGDBRemote::AsyncThread() {
               break;
             }
             case eStateInvalid: {
+            LLDB_LOGF(log,"ProcessGDBRemote::%s %d",__FUNCTION__,__LINE__);  
               // Check to see if we were trying to attach and if we got back
               // the "E87" error code from debugserver -- this indicates that
               // the process is not debuggable.  Return a slightly more
@@ -3768,6 +3782,7 @@ thread_result_t ProcessGDBRemote::AsyncThread() {
             }
 
             default:
+            LLDB_LOGF(log,"ProcessGDBRemote::%s %d",__FUNCTION__,__LINE__);  
               SetPrivateState(stop_state);
               break;
             }   // switch(stop_state)

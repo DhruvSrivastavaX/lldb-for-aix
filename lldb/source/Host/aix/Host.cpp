@@ -63,10 +63,12 @@ static bool GetStatusInfo(::pid_t Pid, ProcessInstanceInfo &ProcessInfo,
                           ProcessState &State, ::pid_t &TracerPid,
                           ::pid_t &Tgid) {
   Log *log = GetLog(LLDBLog::Host);
+  LLDB_LOGF(log,"%s %d",__FUNCTION__,__LINE__);
 
   auto BufferOrError = getProcFile(Pid, "status");
   if (!BufferOrError)
     return false;
+  LLDB_LOGF(log,"%s %d",__FUNCTION__,__LINE__);
 
   llvm::StringRef Rest = BufferOrError.get()->getBuffer();
   while (!Rest.empty()) {
@@ -132,9 +134,12 @@ static bool IsDirNumeric(const char *dname) {
 }
 
 static void GetProcessArgs(::pid_t pid, ProcessInstanceInfo &process_info) {
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log,"%s %d",__FUNCTION__,__LINE__);
   auto BufferOrError = getProcFile(pid, "cmdline");
   if (!BufferOrError)
     return;
+  
   std::unique_ptr<llvm::MemoryBuffer> Cmdline = std::move(*BufferOrError);
 
   llvm::StringRef Arg0, Rest;
@@ -149,6 +154,7 @@ static void GetProcessArgs(::pid_t pid, ProcessInstanceInfo &process_info) {
 
 static void GetExePathAndArch(::pid_t pid, ProcessInstanceInfo &process_info) {
   Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log,"%s %d",__FUNCTION__,__LINE__);
   std::string ExePath(PATH_MAX, '\0');
   std::string Basename(PATH_MAX, '\0');
   struct psinfo psinfoData;
@@ -214,6 +220,8 @@ static bool GetProcessAndStatInfo(::pid_t pid,
   tracerpid = 0;
   process_info.Clear();
 
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log,"%s %d",__FUNCTION__,__LINE__);
   process_info.SetProcessID(pid);
 
   GetExePathAndArch(pid, process_info);
@@ -283,6 +291,8 @@ uint32_t Host::FindProcessesImpl(const ProcessInstanceInfoMatch &match_info,
 bool Host::GetProcessInfo(lldb::pid_t pid, ProcessInstanceInfo &process_info) {
   ::pid_t tracerpid;
   ProcessState State;
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log,"%s %d",__FUNCTION__,__LINE__);
   return GetProcessAndStatInfo(pid, process_info, State, tracerpid);
 }
 

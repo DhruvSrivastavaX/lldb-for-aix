@@ -3527,10 +3527,13 @@ llvm::Expected<TraceSP> Target::GetTraceOrCreate() {
 }
 
 Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
-  m_stats.SetLaunchOrAttachTime();
+ Log *log = GetLog(LLDBLog::Target); 
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
+    m_stats.SetLaunchOrAttachTime();
   auto state = eStateInvalid;
   auto process_sp = GetProcessSP();
   if (process_sp) {
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
     state = process_sp->GetState();
     if (process_sp->IsAlive() && state != eStateConnected) {
       if (state == eStateAttaching)
@@ -3544,6 +3547,7 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
   // If no process info was specified, then use the target executable name as
   // the process to attach to by default
   if (!attach_info.ProcessInfoSpecified()) {
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
     if (old_exec_module_sp)
       attach_info.GetExecutableFile().SetFilename(
             old_exec_module_sp->GetPlatformFileSpec().GetFilename());
@@ -3568,9 +3572,11 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
   Status error;
   if (state != eStateConnected && platform_sp != nullptr &&
       platform_sp->CanDebugProcess() && !attach_info.IsScriptedProcess()) {
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
     SetPlatform(platform_sp);
     process_sp = platform_sp->Attach(attach_info, GetDebugger(), this, error);
   } else {
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
     if (state != eStateConnected) {
       SaveScriptedLaunchInfo(attach_info);
       llvm::StringRef plugin_name = attach_info.GetProcessPluginName();
@@ -3590,17 +3596,23 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
   }
 
   if (error.Success() && process_sp) {
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
     if (async) {
       process_sp->RestoreProcessEvents();
     } else {
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
       // We are stopping all the way out to the user, so update selected frames.
       state = process_sp->WaitForProcessToStop(
           std::nullopt, nullptr, false, attach_info.GetHijackListener(), stream,
           true, SelectMostRelevantFrame);
       process_sp->RestoreProcessEvents();
 
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
+      // We are stopping all the way out to the user, so update selected frames.
       if (state != eStateStopped) {
+      // We are stopping all the way out to the user, so update selected frames.
         const char *exit_desc = process_sp->GetExitDescription();
+ LLDB_LOGF(log,"Target::Attach %d %s ",__LINE__,exit_desc);
         if (exit_desc)
           error = Status::FromErrorStringWithFormat("%s", exit_desc);
         else
@@ -3610,6 +3622,7 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
       }
     }
   }
+ LLDB_LOGF(log,"Target::Attach %d ",__LINE__);
   return error;
 }
 

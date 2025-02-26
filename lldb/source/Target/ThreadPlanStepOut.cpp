@@ -135,6 +135,7 @@ ThreadPlanStepOut::ThreadPlanStepOut(
                                   m_return_addr);
       LLDB_LOGF(log, "ThreadPlanStepOut(%p): %s", static_cast<void *>(this),
                 m_constructor_errors.GetData());
+      LLDB_LOGF(log,"ThreadPlanStepOut permissions %d ",permissions);
       return;
     }
 

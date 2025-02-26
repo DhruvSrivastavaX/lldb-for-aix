@@ -605,6 +605,7 @@ SectionSP SectionList::FindSectionByType(SectionType sect_type,
   SectionSP sect_sp;
   size_t num_sections = m_sections.size();
   for (size_t idx = start_idx; idx < num_sections; ++idx) {
+//    printf("%s() %d type : %d idx : %d\n",__FUNCTION__,__LINE__,m_sections[idx]->GetType(),idx);
     if (m_sections[idx]->GetType() == sect_type) {
       sect_sp = m_sections[idx];
       break;

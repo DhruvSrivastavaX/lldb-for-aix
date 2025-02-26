@@ -446,7 +446,7 @@ NativeProcessLinux::NativeProcessLinux(::pid_t pid, int terminal_fd,
 
 llvm::Expected<std::vector<::pid_t>> NativeProcessLinux::Attach(::pid_t pid) {
   Log *log = GetLog(POSIXLog::Process);
-
+   
   Status status;
   // Use a map to keep track of the threads which we have attached/need to
   // attach.

@@ -3436,7 +3436,8 @@ GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerLLGS::Handle_vAttach(
     StringExtractorGDBRemote &packet) {
   Log *log = GetLog(LLDBLog::Process);
-
+LLDB_LOGF(log,"%s %d",__FUNCTION__,__LINE__);
+printf("%s %d",__FUNCTION__,__LINE__);
   // Consume the ';' after vAttach.
   packet.SetFilePos(strlen("vAttach"));
   if (!packet.GetBytesLeft() || packet.GetChar() != ';')
@@ -3507,6 +3508,9 @@ GDBRemoteCommunicationServerLLGS::Handle_vAttachWait(
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerLLGS::Handle_qVAttachOrWaitSupported(
     StringExtractorGDBRemote &packet) {
+  Log *log = GetLog(LLDBLog::Process);
+LLDB_LOGF(log,"%s %d",__FUNCTION__,__LINE__);
+printf("%s %d",__FUNCTION__,__LINE__);
   return SendOKResponse();
 }
 

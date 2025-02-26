@@ -84,6 +84,8 @@ bool DWARFDebugInfoEntry::Extract(const DWARFDataExtractor &data,
 
 static llvm::Expected<llvm::DWARFAddressRangesVector>
 GetRanges(DWARFUnit &unit, const DWARFFormValue &value) {
+    Log *log = GetLog(DWARFLog::Lookups);
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
   return (value.Form() == DW_FORM_rnglistx)
              ? unit.FindRnglistFromIndex(value.Unsigned())
              : unit.FindRnglistFromOffset(value.Unsigned());

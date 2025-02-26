@@ -469,3 +469,67 @@ CompilerType PlatformAIX::GetSiginfoType(const llvm::Triple &triple) {
   ast->CompleteTagDeclarationDefinition(siginfo_type);
   return siginfo_type;
 }
+
+lldb::ProcessSP PlatformAIX::Attach(ProcessAttachInfo &attach_info,
+                                      Debugger &debugger, Target *target,
+                                      Status &error) {
+
+    Log *log = GetLog(LLDBLog::Platform); 
+
+    LLDB_LOGF(log,"PlatformAIX::Attach : %d",__LINE__);
+
+    lldb::ProcessSP process_sp;  
+    if (IsHost()) {                                                               
+        if (target == nullptr) {                                                    
+            TargetSP new_target_sp;                                                   
+
+            error = debugger.GetTargetList().CreateTarget(                            
+                    debugger, "", "", eLoadDependentsNo, nullptr, new_target_sp);         
+            target = new_target_sp.get();                                             
+            LLDB_LOGF(log, "PlatformPOSIX::%s created new target", __FUNCTION__);     
+        } else {                                                                    
+            error.Clear();                                                            
+            LLDB_LOGF(log, "PlatformPOSIX::%s target already existed, setting target",
+                    __FUNCTION__);                                                                                                       
+        }                                                                           
+
+    LLDB_LOGF(log,"PlatformAIX::Attach : %d",__LINE__);
+        if (target && error.Success()) {                                            
+            if (log) {                                                                
+                ModuleSP exe_module_sp = target->GetExecutableModule();                 
+                LLDB_LOGF(log, "PlatformPOSIX::%s set selected target to ",        
+                        __FUNCTION__ );
+            }                                                                         
+
+    LLDB_LOGF(log,"PlatformAIX::Attach : %d",__LINE__);
+            process_sp =                                                              
+                target->CreateProcess(attach_info.GetListenerForProcess(debugger),    
+                        "gdb-remote", nullptr, true);                   
+
+            if (process_sp) {                                                         
+    LLDB_LOGF(log,"PlatformAIX::Attach : %d",__LINE__);
+                ListenerSP listener_sp = attach_info.GetHijackListener();               
+                if (listener_sp == nullptr) {                                           
+                    listener_sp =                                                         
+                        Listener::MakeListener("lldb.PlatformPOSIX.attach.hijack");       
+                    attach_info.SetHijackListener(listener_sp);                           
+                }                                                                       
+                process_sp->HijackProcessEvents(listener_sp);                           
+                process_sp->SetShadowListener(attach_info.GetShadowListener());         
+                error = process_sp->Attach(attach_info);                                
+            }                                                                         
+        }                                                                           
+    } else {                                                                      
+    LLDB_LOGF(log,"PlatformAIX::Attach : %d",__LINE__);
+        if (m_remote_platform_sp)                                                   
+            process_sp =                                                              
+                m_remote_platform_sp->Attach(attach_info, debugger, target, error);   
+        else                                                                        
+            error =                                                                   
+                Status::FromErrorString("the platform is not currently connected");   
+    } 
+
+    LLDB_LOGF(log,"PlatformAIX::Attach : %d",__LINE__);
+
+    return process_sp;
+}    

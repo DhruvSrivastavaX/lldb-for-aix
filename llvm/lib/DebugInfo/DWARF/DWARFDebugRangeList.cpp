@@ -49,13 +49,13 @@ Error DWARFDebugRangeList::extract(const DWARFDataExtractor &data,
     Entry.StartAddress = data.getRelocatedAddress(offset_ptr);
     Entry.EndAddress =
         data.getRelocatedAddress(offset_ptr, &Entry.SectionIndex);
-
     // Check that both values were extracted correctly.
     if (*offset_ptr != prev_offset + 2 * AddressSize) {
       clear();
       return createStringError(errc::invalid_argument,
-                         "invalid range list entry at offset 0x%" PRIx64,
-                         prev_offset);
+                         //"invalid range list entry at offset 0x%" PRIx64,
+                         "invalid range list entry at offset %ld %ld %ld", 
+                        prev_offset, *offset_ptr, AddressSize);
     }
     if (Entry.isEndOfListEntry())
       break;

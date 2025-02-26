@@ -927,6 +927,8 @@ llvm::Expected<DWARFUnitSP>
 DWARFUnit::extract(SymbolFileDWARF &dwarf, user_id_t uid,
                    const DWARFDataExtractor &debug_info,
                    DIERef::Section section, lldb::offset_t *offset_ptr) {
+    Log *log = GetLog(DWARFLog::Lookups);
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
   assert(debug_info.ValidOffset(*offset_ptr));
 
   DWARFContext &context = dwarf.GetDWARFContext();
@@ -950,6 +952,7 @@ DWARFUnit::extract(SymbolFileDWARF &dwarf, user_id_t uid,
                                             ? context.GetAsLLVM().getTUIndex()
                                             : context.GetAsLLVM().getCUIndex();
     if (index) {
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
       if (header.isTypeUnit())
         entry = index.getFromHash(header.getTypeHash());
       else if (auto dwo_id = header.getDWOId())
@@ -1025,14 +1028,20 @@ DWARFUnit::GetStringOffsetSectionItem(uint32_t index) const {
 
 llvm::Expected<llvm::DWARFAddressRangesVector>
 DWARFUnit::FindRnglistFromOffset(dw_offset_t offset) {
+    Log *log = GetLog(DWARFLog::Lookups);
+    LLDB_LOGF(log,"%s() %d offset %ld",__FUNCTION__,__LINE__,offset);
   if (GetVersion() <= 4) {
     llvm::DWARFDataExtractor data =
         m_dwarf.GetDWARFContext().getOrLoadRangesData().GetAsLLVMDWARF();
     data.setAddressSize(m_header.getAddressByteSize());
 
+    LLDB_LOGF(log,"%s() %d data size %ld Add Size %ld",__FUNCTION__,__LINE__,data.size(),data.getAddressSize());
     llvm::DWARFDebugRangeList list;
-    if (llvm::Error e = list.extract(data, &offset))
+    if (llvm::Error e = list.extract(data, &offset)){
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
       return e;
+    }
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
     return list.getAbsoluteRanges(
         llvm::object::SectionedAddress{GetBaseAddress()});
   }
@@ -1041,7 +1050,7 @@ DWARFUnit::FindRnglistFromOffset(dw_offset_t offset) {
   if (!GetRnglistTable())
     return llvm::createStringError(std::errc::invalid_argument,
                                    "missing or invalid range list table");
-
+  
   llvm::DWARFDataExtractor data = GetRnglistData().GetAsLLVMDWARF();
 
   // As DW_AT_rnglists_base may be missing we need to call setAddressSize.
@@ -1065,6 +1074,8 @@ DWARFUnit::FindRnglistFromOffset(dw_offset_t offset) {
 
 llvm::Expected<llvm::DWARFAddressRangesVector>
 DWARFUnit::FindRnglistFromIndex(uint32_t index) {
+    Log *log = GetLog(DWARFLog::Lookups);
+    LLDB_LOGF(log,"%s() %d",__FUNCTION__,__LINE__);
   llvm::Expected<uint64_t> maybe_offset = GetRnglistOffset(index);
   if (!maybe_offset)
     return maybe_offset.takeError();

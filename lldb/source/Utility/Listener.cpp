@@ -186,6 +186,7 @@ bool Listener::FindNextEventInternal(
   // recursive.
   Log *log = GetLog(LLDBLog::Events);
 
+  LLDB_LOGF(log,"FindNextEventInternal %d",__LINE__);
   if (m_events.empty())
     return false;
 
@@ -197,6 +198,7 @@ bool Listener::FindNextEventInternal(
   };
   Listener::event_collection::iterator pos = m_events.end();
 
+  LLDB_LOGF(log,"FindNextEventInternal %d",__LINE__);
   if (broadcaster == nullptr && event_type_mask == 0)
     pos = m_events.begin();
   else
@@ -224,6 +226,7 @@ bool Listener::FindNextEventInternal(
     }
     return true;
   }
+  LLDB_LOGF(log,"FindNextEventInternal %d",__LINE__);
 
   event_sp.reset();
   return false;
@@ -268,8 +271,10 @@ bool Listener::GetEventInternal(
   while (true) {
     if (FindNextEventInternal(lock, broadcaster, event_type_mask, event_sp,
                               true)) {
+        LLDB_LOGF(log," Listener::GetEventInternal %d",__LINE__);
       return true;
     } else {
+        LLDB_LOGF(log," Listener::GetEventInternal %d",__LINE__);
       std::cv_status result = std::cv_status::no_timeout;
       if (!timeout)
         m_events_condition.wait(lock);
@@ -290,6 +295,7 @@ bool Listener::GetEventInternal(
     }
   }
 
+        LLDB_LOGF(log," Listener::GetEventInternal %d",__LINE__);
   return false;
 }
 

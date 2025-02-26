@@ -24,6 +24,7 @@ using namespace lldb_private;
 using namespace lldb_private::process_gdb_remote;
 using namespace llvm;
 
+Log *log9 = GetLog(GDBRLog::Packets);
 GDBRemoteCommunicationServer::GDBRemoteCommunicationServer()
     : GDBRemoteCommunication(), m_exit_now(false) {
   RegisterPacketHandler(
@@ -44,6 +45,7 @@ GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServer::GetPacketAndSendResponse(
     Timeout<std::micro> timeout, Status &error, bool &interrupt, bool &quit) {
   StringExtractorGDBRemote packet;
+  LLDB_LOGF(log9,"%s %d",__FUNCTION__,__LINE__); 
 
   PacketResult packet_result = ReadPacket(packet, timeout, false);
   if (packet_result == PacketResult::Success) {
@@ -95,6 +97,7 @@ GDBRemoteCommunicationServer::SendUnimplementedResponse(const char *) {
 
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServer::SendErrorResponse(uint8_t err) {
+  LLDB_LOGF(log9,"%s %d",__FUNCTION__,__LINE__); 
   char packet[16];
   int packet_len = ::snprintf(packet, sizeof(packet), "E%2.2x", err);
   assert(packet_len < (int)sizeof(packet));
@@ -103,6 +106,7 @@ GDBRemoteCommunicationServer::SendErrorResponse(uint8_t err) {
 
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServer::SendErrorResponse(const Status &error) {
+  LLDB_LOGF(log9,"%s %d",__FUNCTION__,__LINE__); 
   uint8_t code = error.GetType() == eErrorTypePOSIX ? error.GetError() : 0xff;
   if (m_send_error_strings) {
     lldb_private::StreamString packet;
@@ -115,6 +119,7 @@ GDBRemoteCommunicationServer::SendErrorResponse(const Status &error) {
 
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServer::SendErrorResponse(llvm::Error error) {
+  LLDB_LOGF(log9,"%s %d",__FUNCTION__,__LINE__); 
   assert(error);
   std::unique_ptr<llvm::ErrorInfoBase> EIB;
   std::unique_ptr<UnimplementedError> UE;

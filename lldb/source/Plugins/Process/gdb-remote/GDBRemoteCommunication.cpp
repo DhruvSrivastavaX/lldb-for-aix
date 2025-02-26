@@ -112,6 +112,8 @@ size_t GDBRemoteCommunication::SendNack() {
 
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunication::SendPacketNoLock(llvm::StringRef payload) {
+    Log *log = GetLog(GDBRLog::Packets); 
+    LLDB_LOGF(log,"SendPacketNoLock %s",payload);
   StreamString packet(0, 4, eByteOrderBig);
   packet.PutChar('$');
   packet.Write(payload.data(), payload.size());
@@ -193,7 +195,7 @@ GDBRemoteCommunication::SendRawPacketNoLock(llvm::StringRef packet,
 
     m_history.AddPacket(packet.str(), packet_length,
                         GDBRemotePacket::ePacketTypeSend, bytes_written);
-
+   
     if (bytes_written == packet_length) {
       if (!skip_ack && GetSendAcks())
         return GetAck();
@@ -262,7 +264,7 @@ GDBRemoteCommunication::WaitForPacketNoLock(StringExtractorGDBRemote &packet,
               "status = {1}, error = {2}) => bytes_read = {3}",
               timeout, Communication::ConnectionStatusAsString(status), error,
               bytes_read);
-
+    LLDB_LOGF(log,"%s %d %d",__FUNCTION__,__LINE__,bytes_read);
     if (bytes_read > 0) {
       if (CheckForPacket(buffer, bytes_read, packet) != PacketType::Invalid)
         return PacketResult::Success;

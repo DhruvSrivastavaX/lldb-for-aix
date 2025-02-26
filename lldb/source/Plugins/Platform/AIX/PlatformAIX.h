@@ -64,6 +64,14 @@ public:
 
   std::vector<ArchSpec> m_supported_architectures;
 
+     lldb::ProcessSP Attach(lldb_private::ProcessAttachInfo &attach_info,          
+                         lldb_private::Debugger &debugger,                      
+                         lldb_private::Target *target, // Can be nullptr, if       
+                                                       // nullptr create a new  
+                                                       // target, else use                                          
+                                                       // existing one          
+                         lldb_private::Status &error) override; 
+
 private:
   std::unique_ptr<TypeSystemClang> m_type_system_up;
 };

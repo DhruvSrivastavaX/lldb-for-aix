@@ -2953,7 +2953,10 @@ Status Process::WillAttachToProcessWithName(const char *process_name,
 }
 
 Status Process::Attach(ProcessAttachInfo &attach_info) {
-  m_abi_sp.reset();
+  
+    Log *log = GetLog(LLDBLog::Process);
+
+    m_abi_sp.reset();
   {
     std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
     m_process_input_reader.reset();
@@ -2965,7 +2968,11 @@ Status Process::Attach(ProcessAttachInfo &attach_info) {
 
   lldb::pid_t attach_pid = attach_info.GetProcessID();
   Status error;
+
+  LLDB_LOGF(log,"Process::Attach PID:%d %d",attach_pid,__LINE__);
+
   if (attach_pid == LLDB_INVALID_PROCESS_ID) {
+  LLDB_LOGF(log,"Process::Attach %d",__LINE__);
     char process_name[PATH_MAX];
 
     if (attach_info.GetExecutableFile().GetPath(process_name,
@@ -3044,9 +3051,11 @@ Status Process::Attach(ProcessAttachInfo &attach_info) {
   }
 
   if (attach_pid != LLDB_INVALID_PROCESS_ID) {
+  LLDB_LOGF(log,"Process::Attach %d",__LINE__);
     error = WillAttachToProcessWithID(attach_pid);
     if (error.Success()) {
 
+  LLDB_LOGF(log,"Process::Attach %d",__LINE__);
       if (m_public_run_lock.TrySetRunning()) {
         // Now attach using these arguments.
         m_should_detach = true;
@@ -3059,10 +3068,12 @@ Status Process::Attach(ProcessAttachInfo &attach_info) {
       }
 
       if (error.Success()) {
+  LLDB_LOGF(log,"Process::Attach %d",__LINE__);
         SetNextEventAction(new Process::AttachCompletionHandler(
             this, attach_info.GetResumeCount()));
         StartPrivateStateThread();
       } else {
+  LLDB_LOGF(log,"Process::Attach %d",__LINE__);
         if (GetID() != LLDB_INVALID_PROCESS_ID)
           SetID(LLDB_INVALID_PROCESS_ID);
 
@@ -3074,6 +3085,7 @@ Status Process::Attach(ProcessAttachInfo &attach_info) {
       }
     }
   }
+  LLDB_LOGF(log,"Process::Attach %d",__LINE__);
   return error;
 }
 
@@ -4038,6 +4050,7 @@ thread_result_t Process::RunPrivateStateThread(bool is_secondary_thread) {
   while (!exit_now) {
     EventSP event_sp;
     GetEventsPrivate(event_sp, std::nullopt, control_only);
+    LLDB_LOGF(log,"Process::RunPrivateStateThread: %d",__LINE__);
     if (event_sp->BroadcasterIs(&m_private_state_control_broadcaster)) {
       LLDB_LOGF(log,
                 "Process::%s (arg = %p, pid = %" PRIu64
@@ -4047,20 +4060,25 @@ thread_result_t Process::RunPrivateStateThread(bool is_secondary_thread) {
 
       switch (event_sp->GetType()) {
       case eBroadcastInternalStateControlStop:
+    LLDB_LOGF(log,"Process::RunPrivateStateThread: %d",__LINE__);
         exit_now = true;
         break; // doing any internal state management below
 
       case eBroadcastInternalStateControlPause:
+    LLDB_LOGF(log,"Process::RunPrivateStateThread: %d",__LINE__);
         control_only = true;
         break;
 
       case eBroadcastInternalStateControlResume:
+    LLDB_LOGF(log,"Process::RunPrivateStateThread: %d",__LINE__);
         control_only = false;
         break;
       }
 
+    LLDB_LOGF(log,"Process::RunPrivateStateThread: %d",__LINE__);
       continue;
     } else if (event_sp->GetType() == eBroadcastBitInterrupt) {
+    LLDB_LOGF(log,"Process::RunPrivateStateThread: %d",__LINE__);
       if (m_public_state.GetValue() == eStateAttaching) {
         LLDB_LOGF(log,
                   "Process::%s (arg = %p, pid = %" PRIu64
@@ -4105,8 +4123,10 @@ thread_result_t Process::RunPrivateStateThread(bool is_secondary_thread) {
                   __FUNCTION__);
       }
       continue;
+    LLDB_LOGF(log,"Process::RunPrivateStateThread: %d",__LINE__);
     }
 
+    LLDB_LOGF(log,"Process::RunPrivateStateThread: %d",__LINE__);
     const StateType internal_state =
         Process::ProcessEventData::GetStateFromEvent(event_sp.get());
 
