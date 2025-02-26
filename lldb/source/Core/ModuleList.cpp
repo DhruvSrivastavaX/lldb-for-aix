@@ -260,6 +260,16 @@ void ModuleList::ReplaceEquivalent(
                                       module_sp->GetArchitecture());
     equivalent_module_spec.GetPlatformFileSpec() =
         module_sp->GetPlatformFileSpec();
+ 
+    // To remove the exact equivalent module, the object name must be 
+    // specified. When the equivalent_module_spec object is created, its 
+    // object name is initially set to NULL. This is because the module_sp's 
+    // GetPath() returns a path in the format (/usr/ccs/libc.a), which does 
+    // not include the object name. As a result, MatchesModuleSpec may return 
+    // true even though the object name is NULL and doesn't match any loaded 
+    // module. To fix this, set the object name of the equivalent_module_spec 
+    // to be the same as the object name of the module_sp. */
+    equivalent_module_spec.SetObjectName(module_sp->GetObjectName());
 
     size_t idx = 0;
     while (idx < m_modules.size()) {
