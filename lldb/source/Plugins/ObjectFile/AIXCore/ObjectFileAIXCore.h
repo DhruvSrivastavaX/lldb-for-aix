@@ -19,7 +19,6 @@
 #include "lldb/Utility/UUID.h"
 #include "lldb/lldb-private.h"
 #include "llvm/Object/XCOFFObjectFile.h"
-#include "Plugins/Process/aix-core/AIXCore.h"
 
 /// \class ObjectFileAIXCore
 /// Generic AIX CORE object file reader.
@@ -125,7 +124,6 @@ public:
                 lldb::DataBufferSP header_data_sp,
                 const lldb::ProcessSP &process_sp, lldb::addr_t header_addr);
 
-  AIXCORE::AIXCore64Header m_aixcore_header;
 protected:
 
   static bool ParseAIXCoreHeader(lldb_private::DataExtractor &data,

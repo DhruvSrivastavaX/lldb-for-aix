@@ -53,10 +53,8 @@ RegisterContextSP ThreadAIXCore::GetRegisterContext() {
 
 RegisterContextSP
 ThreadAIXCore::CreateRegisterContextForFrame(StackFrame *frame) {
-  std::cout << "ThreadCore::" <<__FUNCTION__ << std::endl;
   RegisterContextSP reg_ctx_sp;
   uint32_t concrete_frame_idx = 0;
-  Log *log = GetLog(LLDBLog::Thread);
 
   if (frame)
     concrete_frame_idx = frame->GetConcreteFrameIndex();
@@ -80,16 +78,13 @@ ThreadAIXCore::CreateRegisterContextForFrame(StackFrame *frame) {
             break;
     }
     reg_ctx_sp = m_thread_reg_ctx_sp;
-  std::cout << "ThreadCore::" <<__FUNCTION__ << " IF RegisterContext "<<std::endl;
     } else {
         reg_ctx_sp = GetUnwinder().CreateRegisterContextForFrame(frame);
-  std::cout << "ThreadCore::" <<__FUNCTION__ << "ELSE RegisterContext "<<std::endl;
     }
   return reg_ctx_sp;
 }
 
 bool ThreadAIXCore::CalculateStopInfo() {
-  std::cout << "ThreadCore::" <<__FUNCTION__ << std::endl;
   ProcessSP process_sp(GetProcess());
   if (!process_sp)
     return false;
@@ -114,11 +109,7 @@ bool ThreadAIXCore::CalculateStopInfo() {
 
 void AIXSigInfo::Parse(const AIXCORE::AIXCore64Header data, const ArchSpec &arch,
                               const lldb_private::UnixSignals &unix_signals) {
-    Log *log = GetLog(LLDBLog::Process);
-    LLDB_LOGF(log, "c_signo: %x, c_flag: %x, c_entries: %x, c_version: %x",
-            data.c_signo,
-            data.c_flag, data.c_entries, data.c_version);
-    si_signo = data.c_signo;
+    si_signo = data.SignalNum;
 }
 
 AIXSigInfo::AIXSigInfo() { memset(this, 0, sizeof(AIXSigInfo)); }
@@ -129,7 +120,6 @@ size_t AIXSigInfo::GetSize(const lldb_private::ArchSpec &arch) {
 
 std::string AIXSigInfo::GetDescription(
     const lldb_private::UnixSignals &unix_signals) const {
-  std::cout << "AIXSigInfo::" <<__FUNCTION__ << std::endl;
       return unix_signals.GetSignalDescription(si_signo, 0,
                                               0x100000938 );
 

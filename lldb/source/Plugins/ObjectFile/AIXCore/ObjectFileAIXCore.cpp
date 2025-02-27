@@ -44,7 +44,6 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Object/XCOFFObjectFile.h"
-#include "Plugins/Process/aix-core/AIXCore.h"
 
 using namespace llvm;
 using namespace lldb;
@@ -75,13 +74,10 @@ ObjectFile *ObjectFileAIXCore::CreateInstance(const lldb::ModuleSP &module_sp,
                                           const lldb_private::FileSpec *file,
                                           lldb::offset_t file_offset,
                                           lldb::offset_t length) {
-  Log *log = GetLog(LLDBLog::Process);
-  LLDB_LOGF(log, "CreateInstance AIXCore ++ 1.0 length %d", length);
 
   if(m_is_core)
   {
 
-      LLDB_LOGF(log, "CreateInstance AIXCore ++ 1");  
       bool mapped_writable = false;
       if (!data_sp) {
           data_sp = MapFileDataWritable(*file, length, file_offset);
@@ -111,23 +107,16 @@ ObjectFile *ObjectFileAIXCore::CreateInstance(const lldb::ModuleSP &module_sp,
                   data_sp->GetByteSize());
           data_offset = 0;
           magic = data_sp->GetBytes();
-      LLDB_LOGF(log, "CreateInstance AIXCore ++ 5");  
       }
-      LLDB_LOGF(log, "CreateInstance AIXCore ++ 6");  
 
-     // unsigned address_size = ELFHeader::AddressSizeInBytes(magic);
      // if (address_size == 4 || address_size == 8) {
           std::unique_ptr<ObjectFileAIXCore> objfile_up(new ObjectFileAIXCore(
                       module_sp, data_sp, data_offset, file, file_offset, length));
           ArchSpec spec = objfile_up->GetArchitecture();
-          if (!spec)
-              LLDB_LOGF(log, "CreateInstance AIXCore ++ spec");  
-          if (objfile_up->SetModulesArchitecture(spec) == false)
-              LLDB_LOGF(log, "CreateInstance AIXCore ++ arch");  
+          objfile_up->SetModulesArchitecture(spec);
           if (spec /*&& objfile_up->SetModulesArchitecture(spec)*/)
               return objfile_up.release();
      // }
-      LLDB_LOGF(log, "CreateInstance AIXCore ++ 7");  
       return objfile_up.release();
 
   }
@@ -145,8 +134,6 @@ size_t ObjectFileAIXCore::GetModuleSpecifications(
     lldb::offset_t length, lldb_private::ModuleSpecList &specs) {
   const size_t initial_count = specs.GetSize();
 
-  Log *log = GetLog(LLDBLog::Process);
-    LLDB_LOGF(log, "GOT HERE!!! AIXCore GetModSpec %d", initial_count);
   if (ObjectFileAIXCore::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
       /* Need new ArchType??? */
     ArchSpec arch_spec = ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
@@ -160,13 +147,11 @@ size_t ObjectFileAIXCore::GetModuleSpecifications(
 enum CoreVersion : uint64_t {AIXCORE32 = 0xFEEDDB1, AIXCORE64 = 0xFEEDDB2};
 
 static uint32_t AIXCoreHeaderSizeFromMagic(uint32_t magic) {
-  Log *log = GetLog(LLDBLog::Process);
-    LLDB_LOGF(log, "magic CORE %lx", magic);
     switch (magic) {
 
   case AIXCORE64:
       m_is_core = true;
-    return sizeof(struct AIXCORE::AIXCore64Header);
+    return 1; 
     break;
 
     }
@@ -178,13 +163,9 @@ bool ObjectFileAIXCore::MagicBytesMatch(DataBufferSP &data_sp,
                                     lldb::addr_t data_length) {
   lldb_private::DataExtractor data; 
   data.SetData(data_sp, data_offset, data_length);
-  Log *log = GetLog(LLDBLog::Process);
-    LLDB_LOGF(log, "MagicBytesMatch %d, %d", data_offset, data_length);
   lldb::offset_t offset = 0;
   offset += 4;
   uint32_t magic = data.GetU32(&offset);
-  LLDB_LOGF(log, "MagicBytesMatch offset %d, len %d, magic:%lx", data_offset, data_length,
-          magic);
   return AIXCoreHeaderSizeFromMagic(magic) != 0;
 }
 

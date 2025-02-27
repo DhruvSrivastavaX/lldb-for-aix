@@ -21,13 +21,13 @@
 namespace AIXCORE {
 
 
-struct __context64 {
+struct RegContext {
     // The data is arranged in order as filled by AIXCore.cpp in this coredump file
     // so we have to fetch in that exact order, refer there. 
     // But need to change
     // the context structure in order according to Infos_ppc64
-        uint64_t           gpr[32];    /* 64-bit gprs */
-        unsigned long           iar;            /* msr */
+        uint64_t                gpr[32];    /* 64-bit gprs */
+        unsigned long           pc;            /* msr */
         unsigned long           msr;            /* iar */
         unsigned long           origr3;            /* iar */
         unsigned long           ctr;            /* CTR */
@@ -48,61 +48,61 @@ struct __context64 {
 };
 
     struct ThreadContext64 {
-        struct thrdentry64 threadEntry;
-        struct __context64 context;
+        struct thrdentry64 thread;
+        struct RegContext context;
     };
 
     struct UserData {
 
-        struct procentry64_53 process;
+        struct procentry64 process;
         unsigned long long reserved[16];
     };
 
     struct AIXCore64Header {
 
-        int8_t   c_signo;     /* signal number (cause of error) */    
-        int8_t   c_flag;      /* flag to describe core dump type */   
-        uint16_t c_entries;   /* number of core dump modules */           
-        uint32_t c_version;   /* core file format number */           
-        uint64_t c_fdsinfox;  /* offset to fd region in file */
+        int8_t   SignalNum;     /* signal number (cause of error) */    
+        int8_t   Flag;      /* flag to describe core dump type */   
+        uint16_t Entries;   /* number of core dump modules */           
+        uint32_t Version;   /* core file format number */           
+        uint64_t FDInfo;  /* offset to fd region in file */
 
-        uint64_t c_loader;    /* offset to loader region in file */
-        uint64_t c_lsize;     /* size of loader region */
+        uint64_t LoaderOffset;    /* offset to loader region in file */
+        uint64_t LoaderSize;     /* size of loader region */
 
-        uint32_t c_n_thr;     /* number of elements in thread table */
-        uint32_t c_reserved0; /* Padding                            */
-        uint64_t c_thr;       /* offset to thread context table */
+        uint32_t NumberOfThreads ;     /* number of elements in thread table */
+        uint32_t Reserved0; /* Padding                            */
+        uint64_t ThreadContextOffset;       /* offset to thread context table */
 
-        uint64_t c_segs;      /* n of elements in segregion */
-        uint64_t c_segregion; /* offset to start of segregion table */
+        uint64_t NumSegRegion;      /* n of elements in segregion */
+        uint64_t SegRegionOffset; /* offset to start of segregion table */
 
-        uint64_t c_stack;     /* offset of user stack in file */
-        uint64_t c_stackorg;  /* base address of user stack region */
-        uint64_t c_size;      /* size of user stack region */
+        uint64_t StackOffset;     /* offset of user stack in file */
+        uint64_t StackBaseAddr;  /* base address of user stack region */
+        uint64_t StackSize;      /* size of user stack region */
 
-        uint64_t c_data;      /* offset to user data region */
-        uint64_t c_dataorg;   /* base address of user data region */
-        uint64_t c_datasize;  /* size of user data region */
-        uint64_t c_sdorg;     /* base address of sdata region */
-        uint64_t c_sdsize;    /* size of sdata region */
+        uint64_t DataRegionOffset;      /* offset to user data region */
+        uint64_t DataBaseAddr;   /* base address of user data region */
+        uint64_t DataSize;  /* size of user data region */
+        uint64_t SDataBase;     /* base address of sdata region */
+        uint64_t SDataSize;    /* size of sdata region */
 
-        uint64_t c_vmregions; /* number of anonymously mapped areas */
-        uint64_t c_vmm;       /* offset to start of vm_infox table */
+        uint64_t NumVMRegions; /* number of anonymously mapped areas */
+        uint64_t VMOffset;       /* offset to start of vm_infox table */
 
-        int32_t  c_impl;      /* processor implementation */
-        uint32_t c_n_extctx;  /* n of elements in extended ctx table*/
-        uint64_t c_cprs;      /* Checkpoint/Restart offset */
-        uint64_t c_extctx;    /* extended context offset */
-        uint64_t c_ukeyctx;   /* Offset to user-key exception data */
-        uint64_t c_loader2;   /* offset to the loader region in file
+        int32_t  ProcessorImplementation;      /* processor implementation */
+        uint32_t NumElementsCTX;  /* n of elements in extended ctx table*/
+        uint64_t CPRSOffset;      /* Checkpoint/Restart offset */
+        uint64_t ExtendedContextOffset;    /* extended context offset */
+        uint64_t OffsetUserKey;   /* Offset to user-key exception data */
+        uint64_t OffsetLoaderTLS;   /* offset to the loader region in file
                                  when a process uses TLS data */
-        uint64_t c_lsize2;    /* size of the above loader region */
-        uint64_t c_extproc;   /* Extended procentry64 information */
-        uint64_t c_reserved[2];
+        uint64_t TLSLoaderSize;    /* size of the above loader region */
+        uint64_t ExtendedProcEntry;   /* Extended procentry64 information */
+        uint64_t Reserved[2];
 
-        struct ThreadContext64 c_flt;
+        struct ThreadContext64 Fault;
 
-        struct UserData c_user;
+        struct UserData User;
 
         AIXCore64Header();
 

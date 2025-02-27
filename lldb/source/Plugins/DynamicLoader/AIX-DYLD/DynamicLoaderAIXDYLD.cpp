@@ -41,7 +41,6 @@ DynamicLoaderAIXDYLD::DynamicLoaderAIXDYLD(Process *process)
 DynamicLoaderAIXDYLD::~DynamicLoaderAIXDYLD() = default;
 
 void DynamicLoaderAIXDYLD::Initialize() {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                 GetPluginDescriptionStatic(), CreateInstance);
 }
@@ -49,14 +48,12 @@ std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 void DynamicLoaderAIXDYLD::Terminate() {}
 
 llvm::StringRef DynamicLoaderAIXDYLD::GetPluginDescriptionStatic() {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   return "Dynamic loader plug-in that watches for shared library "
          "loads/unloads in AIX processes.";
 }
 
 DynamicLoader *DynamicLoaderAIXDYLD::CreateInstance(Process *process,
                                                         bool force) {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   bool should_create = force;
   if (!should_create) {
     const llvm::Triple &triple_ref =
@@ -74,7 +71,6 @@ std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 void DynamicLoaderAIXDYLD::OnLoadModule(lldb::ModuleSP module_sp,
                                             const ModuleSpec module_spec,
                                             lldb::addr_t module_addr) {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 
   // Resolve the module unless we already have one.
   if (!module_sp) {
@@ -93,7 +89,6 @@ std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 }
 
 void DynamicLoaderAIXDYLD::OnUnloadModule(lldb::addr_t module_addr) {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   Address resolved_addr;
   if (!m_process->GetTarget().ResolveLoadAddress(module_addr, resolved_addr))
     return;
@@ -109,7 +104,6 @@ std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 }
 
 lldb::addr_t DynamicLoaderAIXDYLD::GetLoadAddress(ModuleSP executable) {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   // First, see if the load address is already cached.
   auto it = m_loaded_modules.find(executable);
   if (it != m_loaded_modules.end() && it->second != LLDB_INVALID_ADDRESS)
@@ -140,13 +134,11 @@ std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 bool DynamicLoaderAIXDYLD::NotifyBreakpointHit(
     void *baton, StoppointCallbackContext *context, lldb::user_id_t break_id,
     lldb::user_id_t break_loc_id) {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 }
 
 
 void DynamicLoaderAIXDYLD::ResolveExecutableModule(
     lldb::ModuleSP &module_sp) {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   Log *log = GetLog(LLDBLog::DynamicLoader);
 
   if (m_process == nullptr)
@@ -165,7 +157,6 @@ std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   }
 
   int32long64_t pid = m_process->GetID();
-std::cout << "pid:" << pid <<__FUNCTION__ << std::endl;
   char cwd[PATH_MAX], resolved_path[PATH_MAX];
   std::string executable_name;
   bool path_resolved = false;
@@ -292,13 +283,11 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
 }
 
 void DynamicLoaderAIXDYLD::DidAttach() {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   Log *log = GetLog(LLDBLog::DynamicLoader);
   LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
 
   ModuleSP executable = GetTargetExecutable();
   ResolveExecutableModule(executable);
-std::cout << "PATH "<< executable->GetFileSpec().GetPath().c_str() << std::endl;
 
   if (!executable.get())
     return;
@@ -372,7 +361,6 @@ std::cout << "PATH "<< executable->GetFileSpec().GetPath().c_str() << std::endl;
 }
 
 void DynamicLoaderAIXDYLD::DidLaunch() {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   Log *log = GetLog(LLDBLog::DynamicLoader);
   LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
 
@@ -434,13 +422,11 @@ std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
 }
 
 Status DynamicLoaderAIXDYLD::CanLoadImage() { 
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
     return Status(); }
 
 ThreadPlanSP
 DynamicLoaderAIXDYLD::GetStepThroughTrampolinePlan(Thread &thread,
                                                        bool stop) {
-std::cout << "DynamicLoaderAIXDYLD::" <<__FUNCTION__ << std::endl;
   //FIXME
   return ThreadPlanSP();
 }

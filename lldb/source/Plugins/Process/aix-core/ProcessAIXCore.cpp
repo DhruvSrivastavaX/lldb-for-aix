@@ -10,7 +10,6 @@
 
 #include <memory>
 #include <mutex>
-#include <iostream>
 
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -27,7 +26,6 @@
 #include "lldb/Utility/State.h"
 
 #include "llvm/Support/Threading.h"
-#include "Plugins/ObjectFile/AIXCore/ObjectFileAIXCore.h"
 #include "Plugins/DynamicLoader/AIX-DYLD/DynamicLoaderAIXDYLD.h"
 
 #include "ProcessAIXCore.h"
@@ -45,10 +43,6 @@ llvm::StringRef ProcessAIXCore::GetPluginDescriptionStatic() {
 void ProcessAIXCore::Initialize() {
   static llvm::once_flag g_once_flag;
 
-  Log *log = GetLog(LLDBLog::Process);
-  if (log) {
-      LLDB_LOGF(log, "Init Plugin for AIX Core");
-  }
   llvm::call_once(g_once_flag, []() {
     PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                   GetPluginDescriptionStatic(), CreateInstance);
@@ -64,17 +58,11 @@ lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
                                                const FileSpec *crash_file,
                                                bool can_connect) {
   lldb::ProcessSP process_sp;
-  Log *log = GetLog(LLDBLog::Process);
   if (crash_file && !can_connect) {
       const size_t header_size = sizeof(AIXCORE::AIXCore64Header);
 
-      if (log) {
-          LLDB_LOGF(log, "Core Header Size: %zu", header_size);
-      }
       auto data_sp = FileSystem::Instance().CreateDataBuffer(
               crash_file->GetPath(), header_size, 0);
-      LLDB_LOGF(log, "Core file path: %s", 
-               crash_file->GetPath().c_str());
       if (data_sp && data_sp->GetByteSize() == header_size) {
           /* Add some magic number like check too */
           AIXCORE::AIXCore64Header aixcore_header;
@@ -84,13 +72,9 @@ lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
               //if AIX header
               process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
                       *crash_file);
-              LLDB_LOGF(log, "Core Header Parsing done!! ");
           }
       }
 
-  }
-  if (log) {
-      LLDB_LOGF(log, "Called CreateInstance for AIX Core");
   }
   return process_sp;
 }
@@ -114,21 +98,13 @@ ProcessAIXCore::~ProcessAIXCore() {
 bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
                                 bool plugin_specified_by_name) {
 
-    Log *log = GetLog(LLDBLog::Process);
-    if (log) {
-        LLDB_LOGF(log, "CanDebug Called ");
-    }
     if (!m_core_module_sp && FileSystem::Instance().Exists(m_core_file)) {
         ModuleSpec core_module_spec(m_core_file, target_sp->GetArchitecture());
         Status error(ModuleList::GetSharedModule(core_module_spec, m_core_module_sp,
                                                  nullptr, nullptr, nullptr));
         if (m_core_module_sp) {
-                LLDB_LOGF(log,"core_module_sp not null");
             ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
-                if(core_objfile) {LLDB_LOGF(log,"core_objfile fetched");}
-                LLDB_LOGF(log,"core_objfile %s", core_objfile->GetFileSpec().GetPath().c_str());
             if (core_objfile /*&& core_objfile->GetType() == ObjectFile::eTypeCoreFile*/){
-                LLDB_LOGF(log,"YEs, checked type");
                 return true;
             }
         }
@@ -147,11 +123,9 @@ ArchSpec ProcessAIXCore::GetArchitecture() {
 
 lldb_private::DynamicLoader *ProcessAIXCore::GetDynamicLoader() {
   if (m_dyld_up.get() == nullptr) {
-    std::cout << "ProcessAIXCore::" <<__FUNCTION__ << " Dynamic Loader null " << std::endl;
     m_dyld_up.reset(DynamicLoader::FindPlugin(
         this, DynamicLoaderAIXDYLD::GetPluginNameStatic()));
   }
-    std::cout << "ProcessAIXCore::" <<__FUNCTION__ << std::endl;
   return m_dyld_up.get();
 }
 
@@ -162,90 +136,71 @@ void ProcessAIXCore::ParseAIXCoreFile() {
     AIXSigInfo siginfo;
     siginfo.Parse(m_aixcore_header, arch, unix_signals);
     thread_data.siginfo = siginfo;
-    SetID(m_aixcore_header.c_user.process.pi_pid);
-    thread_data.name.assign (m_aixcore_header.c_user.process.pi_comm,
-            strnlen (m_aixcore_header.c_user.process.pi_comm,
-                sizeof (m_aixcore_header.c_user.process.pi_comm)));
-    lldb::DataBufferSP data_buffer_sp(new lldb_private::DataBufferHeap(sizeof(m_aixcore_header.c_flt.context), 0));
+    SetID(m_aixcore_header.User.process.pi_pid);
+    thread_data.name.assign (m_aixcore_header.User.process.pi_comm,
+            strnlen (m_aixcore_header.User.process.pi_comm,
+                sizeof (m_aixcore_header.User.process.pi_comm)));
+    lldb::DataBufferSP data_buffer_sp(new lldb_private::DataBufferHeap(sizeof(m_aixcore_header.Fault.context), 0));
     memcpy(static_cast<void *>(const_cast<uint8_t *>(data_buffer_sp->GetBytes())),
-            &m_aixcore_header.c_flt.context, sizeof(m_aixcore_header.c_flt.context));
+            &m_aixcore_header.Fault.context, sizeof(m_aixcore_header.Fault.context));
     lldb_private::DataExtractor data(data_buffer_sp, lldb::eByteOrderBig, 8);
 
-    thread_data.gpregset = DataExtractor(data, 0, sizeof(m_aixcore_header.c_flt.context));
-    std::cout << "ProcessAIXCore::" <<__FUNCTION__ << " c_signo " << thread_data.siginfo.si_signo << std::endl;
+    thread_data.gpregset = DataExtractor(data, 0, sizeof(m_aixcore_header.Fault.context));
     m_thread_data.push_back(thread_data);
 }
 
 // Process Control
 Status ProcessAIXCore::DoLoadCore() {
   Status error;
-    Log *log = GetLog(LLDBLog::Process);
-    LLDB_LOGF(log, "DoLoadCore Called ");
   if (!m_core_module_sp) {
     error = Status::FromErrorString("invalid core module");
     return error;
   }
 
- // ObjectFileAIXCore *core = (ObjectFileAIXCore *)(m_core_module_sp->GetObjectFile());
   FileSpec file = m_core_module_sp->GetObjectFile()->GetFileSpec();
   if (file) {
           const size_t header_size = sizeof(AIXCORE::AIXCore64Header);
-          LLDB_LOGF(log, "Core Header Size: %zu", header_size);
           auto data_sp = FileSystem::Instance().CreateDataBuffer(
                   file.GetPath(), -1, 0);
-          LLDB_LOGF(log, "Core file path: %s", 
-                  file.GetPath().c_str());
           if (data_sp && data_sp->GetByteSize() != 0) {
           /* Add some magic number like check too */
           DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
           lldb::offset_t data_offset = 0;
           m_aixcore_header.ParseCoreHeader(data, &data_offset);
           auto dyld = static_cast<DynamicLoaderAIXDYLD *>(GetDynamicLoader());
-          dyld->FillCoreLoaderData(data, m_aixcore_header.c_loader,
-                  m_aixcore_header.c_lsize);
+          dyld->FillCoreLoaderData(data, m_aixcore_header.LoaderOffset,
+                  m_aixcore_header.LoaderSize);
            }
        }
-  /*if (core == nullptr) {
-    error = Status::FromErrorString("invalid core object file");
-    return error;
-  }*/
-    LLDB_LOGF(log, "DoLoadCore Called core object created ");
 
     m_thread_data_valid = true;
     ParseAIXCoreFile();
-    //core->m_aixcore_header.ParseCoreHeader();
-    //core->m_aixcore_header->ParseCoreSegments();
     ArchSpec arch(m_core_module_sp->GetArchitecture());
 
     ArchSpec target_arch = GetTarget().GetArchitecture();
     ArchSpec core_arch(m_core_module_sp->GetArchitecture());
     target_arch.MergeFrom(core_arch);
     GetTarget().SetArchitecture(target_arch);
-    LLDB_LOGF(log,"Checking type %s", (m_core_module_sp->GetArchitecture()).GetArchitectureName());
     lldb::ModuleSP exe_module_sp = GetTarget().GetExecutableModule();
     if (!exe_module_sp) {
         //check if entires are filled
         ModuleSpec exe_module_spec;
         exe_module_spec.GetArchitecture() = arch;
-        exe_module_spec.GetFileSpec().SetFile(m_aixcore_header.c_user.process.pi_comm,
+        exe_module_spec.GetFileSpec().SetFile(m_aixcore_header.User.process.pi_comm,
                 FileSpec::Style::native);
         exe_module_sp = GetTarget().GetOrCreateModule(exe_module_spec, true);
         GetTarget().SetExecutableModule(exe_module_sp, eLoadDependentsNo);
     }
-    /* llvm::ArrayRef<elf::ELFProgramHeader> segments = core->ProgramHeaders();
-  if (segments.size() == 0) {
-    error = Status::FromErrorString("core file has no segments");
-    return error;
-  }*/
     return error;
 }
 
 bool ProcessAIXCore::DoUpdateThreadList(ThreadList &old_thread_list,
                                         ThreadList &new_thread_list) 
 {
-    //m_thread_data[0].tid = 123456; m_thread_data[0].name = "thread-name";
     const ThreadData &td = m_thread_data[0];
-    lldb::ThreadSP thread_sp(new ThreadAIXCore(*this, td));
+    //lldb::ThreadSP thread_sp(new ThreadAIXCore(*this, td););
+    lldb::ThreadSP thread_sp = 
+        std::make_shared<ThreadAIXCore>(*this, td);
     new_thread_list.AddThread(thread_sp);
     return true;
     //return false;
@@ -258,7 +213,6 @@ size_t ProcessAIXCore::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
                                   Status &error) {
   if (lldb::ABISP abi_sp = GetABI())
     addr = abi_sp->FixAnyAddress(addr);
-  std::cout << "ProcessAIXCore::" <<__FUNCTION__ << std::endl;
 
   // Don't allow the caching that lldb_private::Process::ReadMemory does since
   // in core files we have it all cached our our core file anyway.

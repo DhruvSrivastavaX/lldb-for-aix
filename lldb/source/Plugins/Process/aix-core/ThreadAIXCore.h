@@ -9,7 +9,6 @@
 #ifndef LLDB_SOURCE_PLUGINS_PROCESS_AIX_CORE_THREADAIXCORE_H
 #define LLDB_SOURCE_PLUGINS_PROCESS_AIX_CORE_THREADAIXCORE_H
 
-#include "Plugins/Process/elf-core/RegisterUtilities.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "llvm/ADT/DenseMap.h"
@@ -118,7 +117,7 @@ struct AIXSigInfo {
 
 struct ThreadData {
   lldb_private::DataExtractor gpregset;
-  std::vector<lldb_private::CoreNote> notes;
+  std::vector<lldb_private::DataExtractor> notes;
   lldb::tid_t tid;
   std::string name;
   AIXSigInfo siginfo;
@@ -162,7 +161,7 @@ protected:
   lldb::RegisterContextSP m_thread_reg_ctx_sp;
 
   lldb_private::DataExtractor m_gpregset_data;
-  std::vector<lldb_private::CoreNote> m_notes;
+  std::vector<lldb_private::DataExtractor> m_notes;
   AIXSigInfo m_siginfo;
 
   bool CalculateStopInfo() override;
