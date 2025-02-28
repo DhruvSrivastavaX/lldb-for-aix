@@ -244,8 +244,9 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
     data.ExtractBytes(loader_offset, loader_size, eByteOrderBig, buffer);
     buffer_complete = buffer + loader_size;
     ldinfo[0].ldinfo_next = 1;
-    while (i < 7) {
-        struct ld_info *ptr = (struct ld_info *)buffer;
+    struct ld_info *ptr;
+    while (ldinfo[i++].ldinfo_next != 0) {
+        ptr = (struct ld_info *)buffer;
         ldinfo[i].ldinfo_next = ptr->ldinfo_next;
         ldinfo[i].ldinfo_flags = ptr->ldinfo_flags;
         ldinfo[i].ldinfo_core = ptr->ldinfo_core;
@@ -260,12 +261,12 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
         LLDB_LOGF(log, "ldinfo_textsize :%x", ldinfo[i].ldinfo_textsize);
         buffer += ptr->ldinfo_next;
         struct ld_info *ptr2 = &(ldinfo[i]);
-        bool skip_current = true;
         char *pathName = ptr2->ldinfo_filename;
-        char pathWithMember[128] = {0};
+        char pathWithMember[PATH_MAX] = {0};
         sprintf(pathWithMember, "%s", pathName);
         FileSpec file(pathWithMember);
         ModuleSpec module_spec(file, m_process->GetTarget().GetArchitecture());
+        LLDB_LOGF(log, "PathWithMember :%s", pathWithMember);
         if (ModuleSP module_sp = m_process->GetTarget().GetOrCreateModule(module_spec, true /* notify */)) {
             UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr2->ldinfo_textorg, false, 1);
             UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr2->ldinfo_dataorg, false, 2);
@@ -274,7 +275,6 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
         if (ptr2->ldinfo_next == 0) {
             ptr2 = nullptr;
         } 
-        i++;
     }
 }
 

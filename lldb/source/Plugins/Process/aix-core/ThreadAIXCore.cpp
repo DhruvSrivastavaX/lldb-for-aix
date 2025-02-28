@@ -110,6 +110,7 @@ bool ThreadAIXCore::CalculateStopInfo() {
 void AIXSigInfo::Parse(const AIXCORE::AIXCore64Header data, const ArchSpec &arch,
                               const lldb_private::UnixSignals &unix_signals) {
     si_signo = data.SignalNum;
+    sigfault.si_addr = data.Fault.context.pc;
 }
 
 AIXSigInfo::AIXSigInfo() { memset(this, 0, sizeof(AIXSigInfo)); }
@@ -121,6 +122,6 @@ size_t AIXSigInfo::GetSize(const lldb_private::ArchSpec &arch) {
 std::string AIXSigInfo::GetDescription(
     const lldb_private::UnixSignals &unix_signals) const {
       return unix_signals.GetSignalDescription(si_signo, 0,
-                                              0x100000938 );
+                                              sigfault.si_addr);
 
 }
