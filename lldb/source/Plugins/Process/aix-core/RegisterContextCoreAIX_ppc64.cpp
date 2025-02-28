@@ -28,7 +28,10 @@ RegisterContextCoreAIX_ppc64::RegisterContextCoreAIX_ppc64(
   m_gpr.SetData(m_gpr_buffer);
   m_gpr.SetByteOrder(gpregset.GetByteOrder());
 
-/*  ArchSpec arch = register_info->GetTargetArchitecture();
+  // This Code is for Registers like FPR, VSR, VMX and is disabled right now.
+  // It will be implemented as per need.
+  
+  /*  ArchSpec arch = register_info->GetTargetArchitecture();
   DataExtractor fpregset;// = getRegset(notes, arch.GetTriple(), FPR_Desc);
   m_fpr_buffer = std::make_shared<DataBufferHeap>(fpregset.GetDataStart(),
                                                   fpregset.GetByteSize());

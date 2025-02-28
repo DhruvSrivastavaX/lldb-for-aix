@@ -113,10 +113,12 @@ bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
 }
 
 ArchSpec ProcessAIXCore::GetArchitecture() {
+
   ArchSpec arch = m_core_module_sp->GetObjectFile()->GetArchitecture();
 
   ArchSpec target_arch = GetTarget().GetArchitecture();
   arch.MergeFrom(target_arch);
+
   return arch;
 }
 
@@ -130,6 +132,7 @@ lldb_private::DynamicLoader *ProcessAIXCore::GetDynamicLoader() {
 
 void ProcessAIXCore::ParseAIXCoreFile() {
     
+    Log *log = GetLog(LLDBLog::Process);
     AIXSigInfo siginfo;
     ThreadData thread_data;
     
@@ -153,6 +156,7 @@ void ProcessAIXCore::ParseAIXCoreFile() {
 
     thread_data.gpregset = DataExtractor(data, 0, sizeof(m_aixcore_header.Fault.context));
     m_thread_data.push_back(thread_data);
+    LLDB_LOGF(log, "ProcessAIXCore: Parsing Complete!");
 
 }
 
@@ -180,7 +184,13 @@ Status ProcessAIXCore::DoLoadCore() {
             dyld->FillCoreLoaderData(data, m_aixcore_header.LoaderOffset,
                     m_aixcore_header.LoaderSize);
 
+        } else {
+            error = Status::FromErrorString("invalid data");
+            return error;
         }
+    } else {
+        error = Status::FromErrorString("invalid file");
+        return error;
     }
 
     m_thread_data_valid = true;

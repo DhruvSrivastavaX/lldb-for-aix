@@ -125,13 +125,16 @@ size_t ObjectFileAIXCore::GetModuleSpecifications(
 }
 
 static uint32_t AIXCoreHeaderCheckFromMagic(uint32_t magic) {
-    switch (magic) {
 
+    Log *log = GetLog(LLDBLog::Modules);
+    switch (magic) {
+        case AIXCORE32: 
+            LLDB_LOGF(log, "ObjectFileAIXCore: 32-bit not supported");
+            break;
         case AIXCORE64:
             m_is_core = true;
             return 1; 
             break;
-
     }
     return 0;
 }

@@ -85,7 +85,6 @@ public:
 
   void ParseAIXCoreFile();
 
-  AIXCORE::AIXCore64Header m_aixcore_header;
 
 private:
   lldb::ModuleSP m_core_module_sp;
@@ -93,6 +92,7 @@ private:
 
   // True if m_thread_contexts contains valid entries
   bool m_thread_data_valid = false;
+  AIXCORE::AIXCore64Header m_aixcore_header;
 
   std::vector<ThreadData> m_thread_data;
 };
