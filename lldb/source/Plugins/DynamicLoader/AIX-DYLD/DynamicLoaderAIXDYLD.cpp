@@ -228,6 +228,56 @@ void DynamicLoaderAIXDYLD::ResolveExecutableModule(
   target.SetExecutableModule(module_sp, eLoadDependentsNo);
 }
 
+bool DynamicLoaderAIXDYLD::IsCoreFile() const {
+  return !m_process->IsLiveDebugSession();
+}
+
+void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
+        uint64_t loader_offset, uint64_t loader_size ) {
+    
+    struct ld_info ldinfo[64];
+    int i = 0;
+    static char *buffer = (char *)malloc(loader_size);
+    char *buffer_complete;
+    Log *log = GetLog(LLDBLog::DynamicLoader);
+    ByteOrder byteorder = data.GetByteOrder();
+    data.ExtractBytes(loader_offset, loader_size, eByteOrderBig, buffer);
+    buffer_complete = buffer + loader_size;
+    ldinfo[0].ldinfo_next = 1;
+    struct ld_info *ptr;
+    while (ldinfo[i++].ldinfo_next != 0) {
+        ptr = (struct ld_info *)buffer;
+        ldinfo[i].ldinfo_next = ptr->ldinfo_next;
+        ldinfo[i].ldinfo_flags = ptr->ldinfo_flags;
+        ldinfo[i].ldinfo_core = ptr->ldinfo_core;
+        ldinfo[i].ldinfo_textorg = ptr->ldinfo_textorg;
+        ldinfo[i].ldinfo_textsize = ptr->ldinfo_textsize;
+        ldinfo[i].ldinfo_dataorg = ptr->ldinfo_dataorg;
+        ldinfo[i].ldinfo_datasize = ptr->ldinfo_datasize;
+        char *filename = &ptr->ldinfo_filename[0];
+        strcpy(ldinfo[i].ldinfo_filename, filename);
+        LLDB_LOGF(log, "i %d, ldinfo_next :%x", i, ldinfo[i].ldinfo_next);
+        LLDB_LOGF(log, "ldinfo_filename :%s", ldinfo[i].ldinfo_filename);
+        LLDB_LOGF(log, "ldinfo_textsize :%x", ldinfo[i].ldinfo_textsize);
+        buffer += ptr->ldinfo_next;
+        struct ld_info *ptr2 = &(ldinfo[i]);
+        char *pathName = ptr2->ldinfo_filename;
+        char pathWithMember[PATH_MAX] = {0};
+        sprintf(pathWithMember, "%s", pathName);
+        FileSpec file(pathWithMember);
+        ModuleSpec module_spec(file, m_process->GetTarget().GetArchitecture());
+        LLDB_LOGF(log, "PathWithMember :%s", pathWithMember);
+        if (ModuleSP module_sp = m_process->GetTarget().GetOrCreateModule(module_spec, true /* notify */)) {
+            UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr2->ldinfo_textorg, false, 1);
+            UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr2->ldinfo_dataorg, false, 2);
+            // FIXME: .tdata, .bss
+        }
+        if (ptr2->ldinfo_next == 0) {
+            ptr2 = nullptr;
+        } 
+    }
+}
+
 void DynamicLoaderAIXDYLD::DidAttach() {
   Log *log = GetLog(LLDBLog::DynamicLoader);
   LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
@@ -361,7 +411,8 @@ void DynamicLoaderAIXDYLD::DidLaunch() {
 #endif
 }
 
-Status DynamicLoaderAIXDYLD::CanLoadImage() { return Status(); }
+Status DynamicLoaderAIXDYLD::CanLoadImage() { 
+    return Status(); }
 
 ThreadPlanSP
 DynamicLoaderAIXDYLD::GetStepThroughTrampolinePlan(Thread &thread,
