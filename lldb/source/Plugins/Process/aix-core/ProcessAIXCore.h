@@ -83,9 +83,10 @@ public:
   size_t DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
           lldb_private::Status &error) override; 
 
-  AIXCORE::AIXCore64Header m_aixcore_header;
   void ParseAIXCoreFile();
-protected:
+
+  AIXCORE::AIXCore64Header m_aixcore_header;
+
 private:
   lldb::ModuleSP m_core_module_sp;
   std::string m_dyld_plugin_name;

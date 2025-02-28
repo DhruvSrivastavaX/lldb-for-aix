@@ -57,7 +57,7 @@ HostNativeThreadBase::ThreadCreateTrampoline(lldb::thread_arg_t arg) {
   llvm::set_thread_name(info_up->thread_name);
 
   Log *log = GetLog(LLDBLog::Thread);
-  LLDB_LOGF(log, "thread created HostNativeThreadBase::%s()",__FUNCTION__);
+  LLDB_LOGF(log, "thread created");
 
   return info_up->impl();
 }

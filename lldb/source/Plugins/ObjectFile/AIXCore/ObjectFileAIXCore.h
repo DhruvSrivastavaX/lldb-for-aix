@@ -63,57 +63,36 @@ public:
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   // ObjectFile Protocol.
-  /**##**/
   bool ParseHeader() override;
   
-  /*~~~~*/
-  bool SetLoadAddress(lldb_private::Target &target, lldb::addr_t value,
-                      bool value_is_offset) override;
-
-  /*~~~~*/
-  bool SetLoadAddressByType(lldb_private::Target &target, lldb::addr_t value,
-                              bool value_is_offset, int type_id) override;
-
-  /**##**/
   lldb::ByteOrder GetByteOrder() const override;
 
-  /**##**/
   bool IsExecutable() const override;
 
-  /**##**/
   uint32_t GetAddressByteSize() const override;
 
   lldb_private::AddressClass GetAddressClass(lldb::addr_t file_addr) override;
   
-  /**##**/
   void ParseSymtab(lldb_private::Symtab &symtab) override;
 
-  /**##**/
   bool IsStripped() override;
 
-  /**##**/
   void CreateSections(lldb_private::SectionList &unified_section_list) override;
 
-  /**##**/
   void Dump(lldb_private::Stream *s) override;
 
-  /**##**/
   lldb_private::ArchSpec GetArchitecture() override;
 
-  /**##**/
   lldb_private::UUID GetUUID() override;
 
-  /**##**/
   uint32_t GetDependentModules(lldb_private::FileSpecList &files) override;
   
   lldb_private::Address
   GetImageInfoAddress(lldb_private::Target *target) override;
   lldb_private::Address GetBaseAddress() override;
 
-  /**##**/
   ObjectFile::Type CalculateType() override;
 
-  /**##**/
   ObjectFile::Strata CalculateStrata() override;
 
   ObjectFileAIXCore(const lldb::ModuleSP &module_sp, lldb::DataBufferSP data_sp,
@@ -136,14 +115,7 @@ protected:
   static lldb::WritableDataBufferSP
   MapFileDataWritable(const lldb_private::FileSpec &file, uint64_t Size,
                       uint64_t Offset);
-  uint32_t ParseDependentModules();
 
-private:
-  bool CreateCoreBinary();
-
-  lldb_private::Address m_entry_point_address;
-  std::optional<lldb_private::FileSpecList> m_deps_filespec;
-  std::map<std::string, std::vector<std::string>> m_deps_base_members;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_AIXCORE_OBJECTFILEAIXCORE_H

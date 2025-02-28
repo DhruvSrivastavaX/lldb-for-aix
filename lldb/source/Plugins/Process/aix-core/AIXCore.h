@@ -1,11 +1,15 @@
-//==AIXCore.h 
+//===-- AIXCore.h ----------------------------------------*- C++ -*-===//
 //
-// ADD Prologue text
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+// Notes about AIX Process core dumps:
 //
+//===----------------------------------------------------------------------===//
 
-#ifndef AIXCORE_H
-#define AIXCORE_H
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_AIX_CORE_AIXCORE_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_AIX_CORE_AIXCORE_H
 
 #include "llvm/ADT/StringRef.h"
 #include <cstdint>
@@ -14,12 +18,8 @@
 
 #include <sys/types.h>
 #include <procinfo.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <sys/cred.h>
 
 namespace AIXCORE {
-
 
 struct RegContext {
     // The data is arranged in order as filled by AIXCore.cpp in this coredump file
@@ -122,4 +122,4 @@ struct RegContext {
 
 }
 
-#endif // AIXCORE_H
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_AIX_CORE_AIXCORE_H

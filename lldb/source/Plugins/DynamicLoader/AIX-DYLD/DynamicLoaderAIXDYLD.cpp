@@ -234,16 +234,14 @@ bool DynamicLoaderAIXDYLD::IsCoreFile() const {
 
 void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
         uint64_t loader_offset, uint64_t loader_size ) {
+    
     struct ld_info ldinfo[64];
+    int i = 0;
     static char *buffer = (char *)malloc(loader_size);
     char *buffer_complete;
     Log *log = GetLog(LLDBLog::DynamicLoader);
-    LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s() %d", __FUNCTION__, __LINE__);
-    LLDB_LOGF(log, "Loader offset %d size %d", loader_offset, loader_size);
     ByteOrder byteorder = data.GetByteOrder();
-    int i = 0;
     data.ExtractBytes(loader_offset, loader_size, eByteOrderBig, buffer);
-    LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s() %d", __FUNCTION__, __LINE__);
     buffer_complete = buffer + loader_size;
     ldinfo[0].ldinfo_next = 1;
     while (i < 7) {
@@ -255,10 +253,8 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
         ldinfo[i].ldinfo_textsize = ptr->ldinfo_textsize;
         ldinfo[i].ldinfo_dataorg = ptr->ldinfo_dataorg;
         ldinfo[i].ldinfo_datasize = ptr->ldinfo_datasize;
-        //ldinfo[i].ldinfo_filename = ptr->ldinfo_filename;
         char *filename = &ptr->ldinfo_filename[0];
         strcpy(ldinfo[i].ldinfo_filename, filename);
-        //ldinfo[i].ldinfo_filename = &filename;
         LLDB_LOGF(log, "i %d, ldinfo_next :%x", i, ldinfo[i].ldinfo_next);
         LLDB_LOGF(log, "ldinfo_filename :%s", ldinfo[i].ldinfo_filename);
         LLDB_LOGF(log, "ldinfo_textsize :%x", ldinfo[i].ldinfo_textsize);
@@ -291,19 +287,13 @@ void DynamicLoaderAIXDYLD::DidAttach() {
 
   if (!executable.get())
     return;
-  LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s(): %d", __FUNCTION__, __LINE__);
+  LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
 
   // Try to fetch the load address of the file from the process, since there
   // could be randomization of the load address.
   lldb::addr_t load_addr = GetLoadAddress(executable);
-  LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%d()",load_addr);
-  LLDB_LOGF(log, "IsCore :() %d",IsCoreFile());
-  if (!IsCoreFile() && load_addr == LLDB_INVALID_ADDRESS)
+  if (load_addr == LLDB_INVALID_ADDRESS)
     return;
-  else {
-      LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s() %d", __FUNCTION__, __LINE__);
-      //FillCoreLoaderData();
-  }
 
   // Request the process base address.
   lldb::addr_t image_base = m_process->GetImageInfoAddress();

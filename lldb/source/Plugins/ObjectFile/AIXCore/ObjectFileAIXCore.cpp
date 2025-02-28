@@ -17,31 +17,17 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Core/Progress.h"
-#include "lldb/Core/Section.h"
 #include "lldb/Host/FileSystem.h"
-#include "lldb/Host/LZMA.h"
-#include "lldb/Symbol/DWARFCallFrameInfo.h"
 #include "lldb/Symbol/SymbolContext.h"
-#include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/RangeMap.h"
-#include "lldb/Utility/Status.h"
 #include "lldb/Utility/Stream.h"
-#include "lldb/Utility/Timer.h"
-#include "llvm/ADT/IntervalMap.h"
-#include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/XCOFF.h"
-#include "llvm/Object/Decompressor.h"
-#include "llvm/Support/CRC.h"
-#include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Object/XCOFFObjectFile.h"
 
@@ -51,9 +37,9 @@ using namespace lldb_private;
 
 LLDB_PLUGIN_DEFINE(ObjectFileAIXCore)
 
-bool m_is_core = false;
+enum CoreVersion : uint64_t {AIXCORE32 = 0xFEEDDB1, AIXCORE64 = 0xFEEDDB2};
 
-// FIXME: target 64bit at this moment.
+bool m_is_core = false;
 
 // Static methods.
 void ObjectFileAIXCore::Initialize() {
@@ -65,8 +51,6 @@ void ObjectFileAIXCore::Initialize() {
 void ObjectFileAIXCore::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
-
-bool UGLY_FLAG_FOR_AIX __attribute__((weak)) = false;
 
 ObjectFile *ObjectFileAIXCore::CreateInstance(const lldb::ModuleSP &module_sp,
                                           DataBufferSP data_sp,
@@ -109,14 +93,10 @@ ObjectFile *ObjectFileAIXCore::CreateInstance(const lldb::ModuleSP &module_sp,
           magic = data_sp->GetBytes();
       }
 
-     // if (address_size == 4 || address_size == 8) {
-          std::unique_ptr<ObjectFileAIXCore> objfile_up(new ObjectFileAIXCore(
-                      module_sp, data_sp, data_offset, file, file_offset, length));
-          ArchSpec spec = objfile_up->GetArchitecture();
-          objfile_up->SetModulesArchitecture(spec);
-          if (spec /*&& objfile_up->SetModulesArchitecture(spec)*/)
-              return objfile_up.release();
-     // }
+      std::unique_ptr<ObjectFileAIXCore> objfile_up(new ObjectFileAIXCore(
+                  module_sp, data_sp, data_offset, file, file_offset, length));
+      ArchSpec spec = objfile_up->GetArchitecture();
+      objfile_up->SetModulesArchitecture(spec);
       return objfile_up.release();
 
   }
@@ -135,7 +115,7 @@ size_t ObjectFileAIXCore::GetModuleSpecifications(
   const size_t initial_count = specs.GetSize();
 
   if (ObjectFileAIXCore::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
-      /* Need new ArchType??? */
+    // Need new ArchType???
     ArchSpec arch_spec = ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
     ModuleSpec spec(file, arch_spec);
     spec.GetArchitecture().SetArchitecture(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE, llvm::Triple::AIX);
@@ -144,15 +124,13 @@ size_t ObjectFileAIXCore::GetModuleSpecifications(
   return specs.GetSize() - initial_count;
 }
 
-enum CoreVersion : uint64_t {AIXCORE32 = 0xFEEDDB1, AIXCORE64 = 0xFEEDDB2};
-
-static uint32_t AIXCoreHeaderSizeFromMagic(uint32_t magic) {
+static uint32_t AIXCoreHeaderCheckFromMagic(uint32_t magic) {
     switch (magic) {
 
-  case AIXCORE64:
-      m_is_core = true;
-    return 1; 
-    break;
+        case AIXCORE64:
+            m_is_core = true;
+            return 1; 
+            break;
 
     }
     return 0;
@@ -164,9 +142,9 @@ bool ObjectFileAIXCore::MagicBytesMatch(DataBufferSP &data_sp,
   lldb_private::DataExtractor data; 
   data.SetData(data_sp, data_offset, data_length);
   lldb::offset_t offset = 0;
-  offset += 4;
+  offset += 4; // Skipping to the coredump version
   uint32_t magic = data.GetU32(&offset);
-  return AIXCoreHeaderSizeFromMagic(magic) != 0;
+  return AIXCoreHeaderCheckFromMagic(magic) != 0;
 }
 
 bool ObjectFileAIXCore::ParseHeader() {
@@ -174,31 +152,12 @@ bool ObjectFileAIXCore::ParseHeader() {
   return false;
 }
 
-bool ObjectFileAIXCore::ParseAIXCoreHeader(lldb_private::DataExtractor &data,
-                                       lldb::offset_t *offset_ptr
-                                       ) {
-  return false;
-}
-
-
-bool ObjectFileAIXCore::SetLoadAddress(Target &target, lldb::addr_t value,
-                                   bool value_is_offset) {
-  bool changed = false;
-  return changed;
-}
-
-bool ObjectFileAIXCore::SetLoadAddressByType(Target &target, lldb::addr_t value,
-                                   bool value_is_offset, int type_id) {
-  bool changed = false;
-  return changed;
-}
-
 ByteOrder ObjectFileAIXCore::GetByteOrder() const {
   return eByteOrderBig;
 }
 
 bool ObjectFileAIXCore::IsExecutable() const {
-  return true;
+  return false;
 }
 
 uint32_t ObjectFileAIXCore::GetAddressByteSize() const {
@@ -227,11 +186,6 @@ bool ObjectFileAIXCore::IsStripped() {
 void ObjectFileAIXCore::CreateSections(SectionList &unified_section_list) {
 }
 
-/*SectionType ObjectFileAIXCore::GetSectionType(llvm::StringRef sect_name,
-                                             const section_header_t &sect) {
-  return eSectionTypeOther;
-}*/
-
 void ObjectFileAIXCore::Dump(Stream *s) {
 }
 
@@ -244,18 +198,10 @@ UUID ObjectFileAIXCore::GetUUID() {
   return UUID();
 }
 
-uint32_t ObjectFileAIXCore::ParseDependentModules() {
-    return 0;
-}
-
 uint32_t ObjectFileAIXCore::GetDependentModules(FileSpecList &files) {
-  auto num_modules = ParseDependentModules();
-  auto original_size = files.GetSize();
-
-  for (unsigned i = 0; i < num_modules; ++i)
-    files.AppendIfUnique(m_deps_filespec->GetFileSpecAtIndex(i));
-
-  return files.GetSize() - original_size;
+  
+    auto original_size = files.GetSize();
+    return files.GetSize() - original_size;
 }
 
 Address ObjectFileAIXCore::GetImageInfoAddress(Target *target) {
@@ -265,9 +211,8 @@ Address ObjectFileAIXCore::GetImageInfoAddress(Target *target) {
 lldb_private::Address ObjectFileAIXCore::GetBaseAddress() {
   return lldb_private::Address();
 }
-
 ObjectFile::Type ObjectFileAIXCore::CalculateType() {
-  return eTypeUnknown;
+  return eTypeCoreFile;
 }
 
 ObjectFile::Strata ObjectFileAIXCore::CalculateStrata() {
