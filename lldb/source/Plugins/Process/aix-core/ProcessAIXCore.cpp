@@ -234,9 +234,11 @@ void ProcessAIXCore::RefreshStateAfterStop() {}
 // Process Memory
 size_t ProcessAIXCore::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
                                   Status &error) {
+  if(addr == LLDB_INVALID_ADDRESS)
+      return 0;
+
   if (lldb::ABISP abi_sp = GetABI())
-      if(addr != LLDB_INVALID_ADDRESS)
-          addr = abi_sp->FixAnyAddress(addr);
+      addr = abi_sp->FixAnyAddress(addr);
 
   // Don't allow the caching that lldb_private::Process::ReadMemory does since
   // in core files we have it all cached our our core file anyway.
