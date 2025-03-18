@@ -239,7 +239,7 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
     LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
     static char *buffer = (char *)malloc(loader_size);
     if (buffer == NULL) {
-        LLDB_LOG(log, "Buffer allocation failed");
+        LLDB_LOG(log, "Buffer allocation failed error: {0}", std::strerror(errno));
         return;
     }
     struct ld_info ldinfo[64] = {};
