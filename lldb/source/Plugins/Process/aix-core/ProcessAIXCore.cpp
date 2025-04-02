@@ -101,13 +101,14 @@ lldb::addr_t ProcessAIXCore::AddAddressRanges(AIXCORE::AIXCore64Header header) {
 
   if (header.StackSize > 0) {
     VMRangeToFileOffset::Entry *last_entry = m_core_aranges.Back();
-    if (last_entry && last_entry->GetRangeEnd() == range_entry.GetRangeBase() &&
+    if (last_entry &&
+        last_entry->GetRangeEnd() == range_entry.GetRangeBase() &&
         last_entry->data.GetRangeEnd() == range_entry.data.GetRangeBase() &&
         last_entry->GetByteSize() == last_entry->data.GetByteSize()) {
-      last_entry->SetRangeEnd(range_entry.GetRangeEnd());
-      last_entry->data.SetRangeEnd(range_entry.data.GetRangeEnd());
+        last_entry->SetRangeEnd(range_entry.GetRangeEnd());
+        last_entry->data.SetRangeEnd(range_entry.data.GetRangeEnd());
     } else {
-      m_core_aranges.Append(range_entry);
+        m_core_aranges.Append(range_entry);
     }
   }
 
@@ -295,8 +296,8 @@ size_t ProcessAIXCore::DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
     const lldb::addr_t file_end = address_range->data.GetRangeEnd();
     size_t bytes_to_read = size; // Number of bytes to read from the core file
     size_t bytes_copied = 0;   // Number of bytes actually read from the core file
-    lldb::addr_t bytes_left =
-        0; // Number of bytes available in the core file from the given address
+    // Number of bytes available in the core file from the given address
+    lldb::addr_t bytes_left = 0;
 
     // Don't proceed if core file doesn't contain the actual data for this
     // address range.
