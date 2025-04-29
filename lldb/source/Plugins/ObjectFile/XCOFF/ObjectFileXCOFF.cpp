@@ -66,6 +66,7 @@ void ObjectFileXCOFF::Terminate() {
 }
 
 bool UGLY_FLAG_FOR_AIX __attribute__((weak)) = false;
+bool ObjectFileXCOFF::m_is64bit = false;
 
 ObjectFile *ObjectFileXCOFF::CreateInstance(const lldb::ModuleSP &module_sp,
                                             DataBufferSP data_sp,
@@ -114,7 +115,7 @@ bool ObjectFileXCOFF::CreateBinary() {
   auto binary = llvm::object::ObjectFile::createObjectFile(
       llvm::MemoryBufferRef(toStringRef(m_data.GetData()),
                             m_file.GetFilename().GetStringRef()),
-      file_magic::xcoff_object_64);
+      (m_is64bit ? file_magic::xcoff_object_64 : file_magic::xcoff_object_32));
   if (!binary) {
     LLDB_LOG_ERROR(log, binary.takeError(),
                    "Failed to create binary for file ({1}): {0}", m_file);
@@ -147,9 +148,11 @@ size_t ObjectFileXCOFF::GetModuleSpecifications(
 
   if (ObjectFileXCOFF::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
     ArchSpec arch_spec =
-        ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
+        ArchSpec(eArchTypeXCOFF, (m_is64bit ? XCOFF::TCPU_PPC64 : XCOFF::TCPU_PPC), 
+                LLDB_INVALID_CPUTYPE);
     ModuleSpec spec(file, arch_spec);
-    spec.GetArchitecture().SetArchitecture(eArchTypeXCOFF, XCOFF::TCPU_PPC64,
+    spec.GetArchitecture().SetArchitecture(eArchTypeXCOFF, 
+                                           (m_is64bit ? XCOFF::TCPU_PPC64 : XCOFF::TCPU_PPC),
                                            LLDB_INVALID_CPUTYPE,
                                            llvm::Triple::AIX);
     specs.Append(spec);
@@ -157,12 +160,14 @@ size_t ObjectFileXCOFF::GetModuleSpecifications(
   return specs.GetSize() - initial_count;
 }
 
-static uint32_t XCOFFHeaderSizeFromMagic(uint32_t magic) {
+uint32_t ObjectFileXCOFF::XCOFFHeaderSizeFromMagic(uint32_t magic) {
   switch (magic) {
-    // TODO: 32bit not supported.
-    // case XCOFF::XCOFF32:
-    //  return sizeof(struct llvm::object::XCOFFFileHeader32);
+    // TODO: 32bit support in progress.
+  case XCOFF::XCOFF32:
+    m_is64bit = false;
+    return sizeof(struct llvm::object::XCOFFFileHeader32);
   case XCOFF::XCOFF64:
+    m_is64bit = true;
     return sizeof(struct llvm::object::XCOFFFileHeader64);
     break;
 
@@ -189,9 +194,10 @@ bool ObjectFileXCOFF::ParseHeader() {
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
     m_sect_headers.clear();
+    m_sect32_headers.clear();
     lldb::offset_t offset = 0;
 
-    if (ParseXCOFFHeader(m_data, &offset, m_xcoff_header)) {
+    if (ParseXCOFFHeader(m_data, &offset, m_xcoff_header, m_xcoff32_header)) {
       m_data.SetAddressByteSize(GetAddressByteSize());
       if (m_xcoff_header.auxhdrsize > 0)
         ParseXCOFFOptionalHeader(m_data, &offset);
@@ -205,15 +211,26 @@ bool ObjectFileXCOFF::ParseHeader() {
 
 bool ObjectFileXCOFF::ParseXCOFFHeader(lldb_private::DataExtractor &data,
                                        lldb::offset_t *offset_ptr,
-                                       xcoff_header_t &xcoff_header) {
+                                       xcoff_header_t &xcoff_header,
+                                       xcoff32_header_t &xcoff32_header) {
   //FIXME: data.ValidOffsetForDataOfSize
-  xcoff_header.magic = data.GetU16(offset_ptr);
-  xcoff_header.nsects = data.GetU16(offset_ptr);
-  xcoff_header.modtime = data.GetU32(offset_ptr);
-  xcoff_header.symoff = data.GetU64(offset_ptr);
-  xcoff_header.auxhdrsize = data.GetU16(offset_ptr);
-  xcoff_header.flags = data.GetU16(offset_ptr);
-  xcoff_header.nsyms = data.GetU32(offset_ptr);
+  if (m_is64bit) {
+      xcoff_header.magic = data.GetU16(offset_ptr);
+      xcoff_header.nsects = data.GetU16(offset_ptr);
+      xcoff_header.modtime = data.GetU32(offset_ptr);
+      xcoff_header.symoff = data.GetU64(offset_ptr);
+      xcoff_header.auxhdrsize = data.GetU16(offset_ptr);
+      xcoff_header.flags = data.GetU16(offset_ptr);
+      xcoff_header.nsyms = data.GetU32(offset_ptr);
+  } else {
+      xcoff32_header.magic = data.GetU16(offset_ptr);
+      xcoff32_header.nsects = data.GetU16(offset_ptr);
+      xcoff32_header.modtime = data.GetU32(offset_ptr);
+      xcoff32_header.symoff = data.GetU32(offset_ptr);
+      xcoff32_header.auxhdrsize = data.GetU16(offset_ptr);
+      xcoff32_header.flags = data.GetU16(offset_ptr);
+      xcoff32_header.nsyms = data.GetU32(offset_ptr);
+  }
   return true;
 }
 
@@ -221,46 +238,84 @@ bool ObjectFileXCOFF::ParseXCOFFOptionalHeader(lldb_private::DataExtractor &data
                                                lldb::offset_t *offset_ptr) {
   lldb::offset_t init_offset = *offset_ptr;
   //FIXME: data.ValidOffsetForDataOfSize
-  m_xcoff_aux_header.AuxMagic = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.Version = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.ReservedForDebugger = data.GetU32(offset_ptr);
-  m_xcoff_aux_header.TextStartAddr = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.DataStartAddr = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.TOCAnchorAddr = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.SecNumOfEntryPoint = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.SecNumOfText = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.SecNumOfData = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.SecNumOfTOC = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.SecNumOfLoader = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.SecNumOfBSS = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.MaxAlignOfText = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.MaxAlignOfData = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.ModuleType = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.CpuFlag = data.GetU8(offset_ptr);
-  m_xcoff_aux_header.CpuType = data.GetU8(offset_ptr);
-  m_xcoff_aux_header.TextPageSize = data.GetU8(offset_ptr);
-  m_xcoff_aux_header.DataPageSize = data.GetU8(offset_ptr);
-  m_xcoff_aux_header.StackPageSize = data.GetU8(offset_ptr);
-  m_xcoff_aux_header.FlagAndTDataAlignment = data.GetU8(offset_ptr);
-  m_xcoff_aux_header.TextSize = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.InitDataSize = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.BssDataSize = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.EntryPointAddr = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.MaxStackSize = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.MaxDataSize = data.GetU64(offset_ptr);
-  m_xcoff_aux_header.SecNumOfTData = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.SecNumOfTBSS = data.GetU16(offset_ptr);
-  m_xcoff_aux_header.XCOFF64Flag = data.GetU16(offset_ptr);
-  lldb::offset_t last_offset = *offset_ptr;
-  if ((last_offset - init_offset) < m_xcoff_header.auxhdrsize)
-    *offset_ptr += (m_xcoff_header.auxhdrsize - (last_offset - init_offset));
+  if (m_is64bit) {
+      m_xcoff_aux_header.AuxMagic = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.Version = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.ReservedForDebugger = data.GetU32(offset_ptr);
+      m_xcoff_aux_header.TextStartAddr = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.DataStartAddr = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.TOCAnchorAddr = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.SecNumOfEntryPoint = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfText = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfData = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfTOC = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfLoader = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfBSS = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.MaxAlignOfText = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.MaxAlignOfData = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.ModuleType = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.CpuFlag = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.CpuType = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.TextPageSize = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.DataPageSize = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.StackPageSize = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.FlagAndTDataAlignment = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.TextSize = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.InitDataSize = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.BssDataSize = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.EntryPointAddr = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.MaxStackSize = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.MaxDataSize = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.SecNumOfTData = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfTBSS = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.XCOFF64Flag = data.GetU16(offset_ptr);
+      lldb::offset_t last_offset = *offset_ptr;
+      if ((last_offset - init_offset) < m_xcoff32_header.auxhdrsize)
+          *offset_ptr += (m_xcoff32_header.auxhdrsize - (last_offset - init_offset));
+  }
+  else {
+      m_xcoff32_aux_header.AuxMagic = data.GetU16(offset_ptr);
+      m_xcoff32_aux_header.Version = data.GetU16(offset_ptr);
+      m_xcoff32_aux_header.TextSize = data.GetU32(offset_ptr);
+      m_xcoff32_aux_header.InitDataSize = data.GetU32(offset_ptr);
+      m_xcoff32_aux_header.BssDataSize = data.GetU32(offset_ptr);
+      m_xcoff32_aux_header.EntryPointAddr = data.GetU32(offset_ptr);
+      m_xcoff_aux_header.TextStartAddr = data.GetU32(offset_ptr);
+      m_xcoff_aux_header.DataStartAddr = data.GetU32(offset_ptr);
+      m_xcoff_aux_header.TOCAnchorAddr = data.GetU32(offset_ptr);
+      m_xcoff_aux_header.SecNumOfEntryPoint = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfText = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfData = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfTOC = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfLoader = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfBSS = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.MaxAlignOfText = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.MaxAlignOfData = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.ModuleType = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.CpuFlag = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.CpuType = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.MaxStackSize = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.MaxDataSize = data.GetU64(offset_ptr);
+      m_xcoff_aux_header.ReservedForDebugger = data.GetU32(offset_ptr);
+      m_xcoff_aux_header.TextPageSize = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.DataPageSize = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.StackPageSize = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.FlagAndTDataAlignment = data.GetU8(offset_ptr);
+      m_xcoff_aux_header.SecNumOfTData = data.GetU16(offset_ptr);
+      m_xcoff_aux_header.SecNumOfTBSS = data.GetU16(offset_ptr);
+      lldb::offset_t last_offset = *offset_ptr;
+      if ((last_offset - init_offset) < m_xcoff32_header.auxhdrsize)
+          *offset_ptr += (m_xcoff32_header.auxhdrsize - (last_offset - init_offset));
+  }
   return true;
 }
 
 bool ObjectFileXCOFF::ParseSectionHeaders(
     uint32_t section_header_data_offset) {
-  const uint32_t nsects = m_xcoff_header.nsects;
+  const uint32_t nsects = 
+      m_is64bit ? m_xcoff_header.nsects:m_xcoff32_header.nsects;
   m_sect_headers.clear();
+  m_sect32_headers.clear();
 
   if (nsects > 0) {
     const size_t section_header_byte_size = nsects * m_binary->getSectionHeaderSize();
@@ -270,28 +325,43 @@ bool ObjectFileXCOFF::ParseSectionHeaders(
     lldb::offset_t offset = 0;
     //FIXME: section_header_data.ValidOffsetForDataOfSize
     m_sect_headers.resize(nsects);
+    m_sect32_headers.resize(nsects);
 
     for (uint32_t idx = 0; idx < nsects; ++idx) {
       const void *name_data = section_header_data.GetData(&offset, 8);
       if (name_data) {
-        memcpy(m_sect_headers[idx].name, name_data, 8);
-        m_sect_headers[idx].phyaddr = section_header_data.GetU64(&offset);
-        m_sect_headers[idx].vmaddr = section_header_data.GetU64(&offset);
-        m_sect_headers[idx].size = section_header_data.GetU64(&offset);
-        m_sect_headers[idx].offset = section_header_data.GetU64(&offset);
-        m_sect_headers[idx].reloff = section_header_data.GetU64(&offset);
-        m_sect_headers[idx].lineoff = section_header_data.GetU64(&offset);
-        m_sect_headers[idx].nreloc = section_header_data.GetU32(&offset);
-        m_sect_headers[idx].nline = section_header_data.GetU32(&offset);
-        m_sect_headers[idx].flags = section_header_data.GetU32(&offset);
-        offset += 4;
+          if (m_is64bit) {
+              memcpy(m_sect_headers[idx].name, name_data, 8);
+              m_sect_headers[idx].phyaddr = section_header_data.GetU64(&offset);
+              m_sect_headers[idx].vmaddr = section_header_data.GetU64(&offset);
+              m_sect_headers[idx].size = section_header_data.GetU64(&offset);
+              m_sect_headers[idx].offset = section_header_data.GetU64(&offset);
+              m_sect_headers[idx].reloff = section_header_data.GetU64(&offset);
+              m_sect_headers[idx].lineoff = section_header_data.GetU64(&offset);
+              m_sect_headers[idx].nreloc = section_header_data.GetU32(&offset);
+              m_sect_headers[idx].nline = section_header_data.GetU32(&offset);
+              m_sect_headers[idx].flags = section_header_data.GetU32(&offset);
+              offset += 4;
+          } else {
+              memcpy(m_sect32_headers[idx].name, name_data, 8);
+              m_sect32_headers[idx].phyaddr = section_header_data.GetU64(&offset);
+              m_sect32_headers[idx].vmaddr = section_header_data.GetU64(&offset);
+              m_sect32_headers[idx].size = section_header_data.GetU64(&offset);
+              m_sect32_headers[idx].offset = section_header_data.GetU64(&offset);
+              m_sect32_headers[idx].reloff = section_header_data.GetU64(&offset);
+              m_sect32_headers[idx].lineoff = section_header_data.GetU64(&offset);
+              m_sect32_headers[idx].nreloc = section_header_data.GetU32(&offset);
+              m_sect32_headers[idx].nline = section_header_data.GetU32(&offset);
+              m_sect32_headers[idx].flags = section_header_data.GetU32(&offset);
+              offset += 4;
+          }
       } else {
         offset += (m_binary->getSectionHeaderSize() - 8);
       }
     }
   }
 
-  return !m_sect_headers.empty();
+  return (m_is64bit ? !m_sect_headers.empty() : !m_sect32_headers.empty());
 }
 
 lldb_private::DataExtractor ObjectFileXCOFF::ReadImageData(uint32_t offset, size_t size) {
@@ -395,7 +465,7 @@ bool ObjectFileXCOFF::IsExecutable() const { return true; }
 uint32_t ObjectFileXCOFF::GetAddressByteSize() const {
   if (m_xcoff_header.magic == XCOFF::XCOFF64)
     return 8;
-  else if (m_xcoff_header.magic == XCOFF::XCOFF32)
+  else if (m_xcoff32_header.magic == XCOFF::XCOFF32)
     return 4;
   return 4;
 }
@@ -515,9 +585,10 @@ void ObjectFileXCOFF::CreateSections(SectionList &unified_section_list) {
     const uint32_t nsects = m_sect_headers.size();
     ModuleSP module_sp(GetModule());
     for (uint32_t idx = 0; idx < nsects; ++idx) {
-      llvm::StringRef sect_name = GetSectionName(m_sect_headers[idx]);
-      ConstString const_sect_name(sect_name);
-      SectionType section_type = GetSectionType(sect_name, m_sect_headers[idx]);
+        llvm::StringRef sect_name;
+        sect_name = GetSectionName(m_sect_headers[idx]);
+        ConstString const_sect_name(sect_name);
+        SectionType section_type = GetSectionType(sect_name, m_sect_headers[idx]);
 
       SectionSP section_sp(new Section(
           module_sp,       // Module to which this section belongs
@@ -525,20 +596,26 @@ void ObjectFileXCOFF::CreateSections(SectionList &unified_section_list) {
           idx + 1,         // Section ID is the 1 based section index.
           const_sect_name, // Name of this section
           section_type,
-          m_sect_headers[idx].vmaddr, // File VM address == addresses as
-                                          // they are found in the object file
-          m_sect_headers[idx].size,     // VM size in bytes of this section
-          m_sect_headers[idx].offset, // Offset to the data for this section in the file
-          m_sect_headers[idx].size, // Size in bytes of this section as found in the file
+          m_sect_headers[idx].vmaddr, 
+          // File VM address == addresses as
+          // they are found in the object file
+          m_sect_headers[idx].size,
+          // VM size in bytes of this section
+          m_sect_headers[idx].offset,
+          // Offset to the data for this section in the file
+          m_sect_headers[idx].size, 
+          // Size in bytes of this section as found in the file
           0, // FIXME: alignment
           m_sect_headers[idx].flags));      // Flags for this section
 
       // FIXME
       uint32_t permissions = 0;
       permissions |= ePermissionsReadable;
-      if (m_sect_headers[idx].flags & (XCOFF::STYP_DATA | XCOFF::STYP_BSS))
+      if (m_sect_headers[idx].flags & 
+                  (XCOFF::STYP_DATA | XCOFF::STYP_BSS))
         permissions |= ePermissionsWritable;
-      if (m_sect_headers[idx].flags & XCOFF::STYP_TEXT)
+      if (m_sect_headers[idx].flags & 
+              XCOFF::STYP_TEXT)
         permissions |= ePermissionsExecutable;
       section_sp->SetPermissions(permissions);
 
@@ -722,9 +799,11 @@ lldb_private::Address ObjectFileXCOFF::GetBaseAddress() {
 }
 
 ObjectFile::Type ObjectFileXCOFF::CalculateType() {
-  if (m_binary->fileHeader64()->Flags & XCOFF::F_EXEC)
+  if ((m_is64bit ? m_binary->fileHeader64()->Flags : 
+              m_binary->fileHeader32()->Flags) & XCOFF::F_EXEC)
     return eTypeExecutable;
-  else if (m_binary->fileHeader64()->Flags & XCOFF::F_SHROBJ)
+  else if ((m_is64bit ? m_binary->fileHeader64()->Flags : 
+              m_binary->fileHeader32()->Flags) & XCOFF::F_SHROBJ)
     return eTypeSharedLibrary;
   return eTypeUnknown;
 }

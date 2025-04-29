@@ -141,6 +141,16 @@ protected:
     uint16_t flags;
   } xcoff_header_t;
 
+  typedef struct xcoff32_header {
+    uint16_t magic;
+    uint16_t nsects;
+    uint32_t modtime;
+    uint32_t symoff;
+    uint32_t nsyms;
+    uint16_t auxhdrsize;
+    uint16_t flags;
+  } xcoff32_header_t;
+
   typedef struct xcoff_aux_header {
     uint16_t AuxMagic;
     uint16_t Version;
@@ -174,6 +184,38 @@ protected:
     uint16_t XCOFF64Flag;
   } xcoff_aux_header_t;
 
+  typedef struct xcoff32_aux_header {
+    uint16_t AuxMagic;
+    uint16_t Version;
+    uint32_t TextSize;
+    uint32_t InitDataSize;
+    uint32_t BssDataSize;
+    uint32_t EntryPointAddr;
+    uint32_t TextStartAddr;
+    uint32_t DataStartAddr;
+    uint32_t TOCAnchorAddr;
+    uint16_t SecNumOfEntryPoint;
+    uint16_t SecNumOfText;
+    uint16_t SecNumOfData;
+    uint16_t SecNumOfTOC;
+    uint16_t SecNumOfLoader;
+    uint16_t SecNumOfBSS;
+    uint16_t MaxAlignOfText;
+    uint16_t MaxAlignOfData;
+    uint16_t ModuleType;
+    uint8_t CpuFlag;
+    uint8_t CpuType;
+    uint32_t MaxStackSize;
+    uint32_t MaxDataSize;
+    uint32_t ReservedForDebugger;
+    uint8_t TextPageSize;
+    uint8_t DataPageSize;
+    uint8_t StackPageSize;
+    uint8_t FlagAndTDataAlignment;
+    uint16_t SecNumOfTData;
+    uint16_t SecNumOfTBSS;
+  } xcoff32_aux_header_t;
+
   typedef struct section_header {
     char name[8];
     uint64_t phyaddr; // Physical Addr
@@ -187,6 +229,19 @@ protected:
     uint32_t flags;
   } section_header_t;
 
+  typedef struct section32_header {
+    char name[8];
+    uint32_t phyaddr; // Physical Addr
+    uint32_t vmaddr;  // Virtual Addr
+    uint32_t size;    // Section size
+    uint32_t offset;  // File offset to raw data
+    uint32_t reloff;  // Offset to relocations
+    uint32_t lineoff; // Offset to line table entries
+    uint16_t nreloc;  // Number of relocation entries
+    uint16_t nline;   // Number of line table entries
+    uint16_t flags;
+  } section32_header_t;
+
   typedef struct xcoff_symbol {
     uint64_t value;
     uint32_t offset;
@@ -195,6 +250,19 @@ protected:
     uint8_t storage;
     uint8_t naux;
   } xcoff_symbol_t;
+
+  typedef struct xcoff32_symbol {
+    char name[8];
+    uint32_t zeroes;
+    uint32_t value;
+    uint32_t offset;
+    uint16_t sect;
+    uint16_t type;
+    uint8_t lang;
+    uint8_t cpu;
+    uint8_t storage;
+    uint8_t naux;
+  } xcoff32_symbol_t;
 
   typedef struct xcoff_sym_csect_aux_entry {
     uint32_t section_or_len_low_byte;
@@ -207,9 +275,20 @@ protected:
     uint8_t aux_type;
   } xcoff_sym_csect_aux_entry_t;
 
+  typedef struct xcoff32_sym_csect_aux_entry {
+    uint32_t section_or_len;
+    uint32_t parameter_hash_index;
+    uint16_t type_check_sect_num;
+    uint8_t symbol_alignment_and_type;
+    uint8_t storage_mapping_class;
+    uint32_t reserved_stab;
+    uint16_t reserved_snstab;
+  } xcoff32_sym_csect_aux_entry_t;
+
   static bool ParseXCOFFHeader(lldb_private::DataExtractor &data,
                               lldb::offset_t *offset_ptr,
-                              xcoff_header_t &xcoff_header);
+                              xcoff_header_t &xcoff_header,
+                              xcoff32_header_t &xcoff32_header);
   bool ParseXCOFFOptionalHeader(lldb_private::DataExtractor &data,
                                 lldb::offset_t *offset_ptr);
   bool ParseSectionHeaders(uint32_t offset);
@@ -226,13 +305,20 @@ protected:
 
   uint32_t ParseDependentModules();
   typedef std::vector<section_header_t> SectionHeaderColl;
+  typedef std::vector<section32_header_t> SectionHeaderColl32;
 
 private:
   bool CreateBinary();
+  static uint32_t XCOFFHeaderSizeFromMagic(uint32_t magic);
 
+  static bool m_is64bit;
   xcoff_header_t m_xcoff_header;
+  xcoff32_header_t m_xcoff32_header;
   xcoff_aux_header_t m_xcoff_aux_header;
+  xcoff32_aux_header_t m_xcoff32_aux_header;
   SectionHeaderColl m_sect_headers;
+  SectionHeaderColl32 m_sect32_headers;
+  
   std::unique_ptr<llvm::object::XCOFFObjectFile> m_binary;
   lldb_private::Address m_entry_point_address;
   std::optional<lldb_private::FileSpecList> m_deps_filespec;
