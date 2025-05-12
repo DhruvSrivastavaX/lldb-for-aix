@@ -148,11 +148,11 @@ size_t ObjectFileXCOFF::GetModuleSpecifications(
 
   if (ObjectFileXCOFF::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
     ArchSpec arch_spec =
-        ArchSpec(eArchTypeXCOFF, (m_is64bit ? XCOFF::TCPU_PPC64 : XCOFF::TCPU_PPC), 
+        ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64,
                 LLDB_INVALID_CPUTYPE);
     ModuleSpec spec(file, arch_spec);
     spec.GetArchitecture().SetArchitecture(eArchTypeXCOFF, 
-                                           (m_is64bit ? XCOFF::TCPU_PPC64 : XCOFF::TCPU_PPC),
+                                           XCOFF::TCPU_PPC64,
                                            LLDB_INVALID_CPUTYPE,
                                            llvm::Triple::AIX);
     specs.Append(spec);
@@ -199,7 +199,8 @@ bool ObjectFileXCOFF::ParseHeader() {
 
     if (ParseXCOFFHeader(m_data, &offset, m_xcoff_header, m_xcoff32_header)) {
       m_data.SetAddressByteSize(GetAddressByteSize());
-      if (m_xcoff_header.auxhdrsize > 0)
+      if (m_is64bit ? (m_xcoff_header.auxhdrsize > 0):
+              (m_xcoff32_header.auxhdrsize > 0))
         ParseXCOFFOptionalHeader(m_data, &offset);
       ParseSectionHeaders(offset);
     }
@@ -838,8 +839,9 @@ ObjectFileXCOFF::ObjectFileXCOFF(const lldb::ModuleSP &module_sp,
                              lldb::offset_t length)
     : ObjectFile(module_sp, file, file_offset, length, data_sp, data_offset),
       m_xcoff_header(), m_sect_headers(), m_deps_filespec(), m_deps_base_members(),
-      m_entry_point_address() {
+      m_entry_point_address(), m_xcoff32_header(), m_sect32_headers() {
   ::memset(&m_xcoff_header, 0, sizeof(m_xcoff_header));
+  ::memset(&m_xcoff32_header, 0, sizeof(m_xcoff32_header));
   if (file)
     m_file = *file;
 }
@@ -850,6 +852,7 @@ ObjectFileXCOFF::ObjectFileXCOFF(const lldb::ModuleSP &module_sp,
                              addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
       m_xcoff_header(), m_sect_headers(), m_deps_filespec(), m_deps_base_members(),
-      m_entry_point_address() {
+      m_entry_point_address(), m_xcoff32_header(), m_sect32_headers() {
   ::memset(&m_xcoff_header, 0, sizeof(m_xcoff_header));
+  ::memset(&m_xcoff32_header, 0, sizeof(m_xcoff32_header));
 }
