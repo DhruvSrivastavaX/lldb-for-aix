@@ -396,6 +396,7 @@ bool ObjectFileXCOFF::SetLoadAddress(Target &target, lldb::addr_t value,
   if (module_sp) {
     size_t num_loaded_sections = 0;
     SectionList *section_list = GetSectionList();
+
     if (section_list) {
       const size_t num_sections = section_list->GetSize();
       size_t sect_idx = 0;
@@ -404,16 +405,19 @@ bool ObjectFileXCOFF::SetLoadAddress(Target &target, lldb::addr_t value,
         // Iterate through the object file sections to find all of the sections
         // that have SHF_ALLOC in their flag bits.
         SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
-        if (section_sp && !section_sp->IsThreadSpecific()) {
-          bool use_offset = false;
-          if (strcmp(section_sp->GetName().AsCString(), ".text") == 0 ||
-              strcmp(section_sp->GetName().AsCString(), ".data") == 0 ||
-              strcmp(section_sp->GetName().AsCString(), ".bss") == 0)
-            use_offset = true;
 
+        if (section_sp && !section_sp->IsThreadSpecific()) {
+          addr_t load_addr = 0;
+          if (!value_is_offset)
+            load_addr = section_sp->GetFileAddress();
+          else {
+            if (strcmp(section_sp->GetName().AsCString(), ".text") == 0)
+              load_addr = section_sp->GetFileOffset() + value;
+            else /* Other sections: data, bss, loader, dwline, dwinfo, dwabrev */
+              load_addr = section_sp->GetFileAddress() + value;
+          }
           if (target.GetSectionLoadListPublic().SetSectionLoadAddress(
-                  section_sp, (use_offset ?
-                  (section_sp->GetFileOffset() + value) : (section_sp->GetFileAddress() + value))))
+                section_sp, load_addr))
             ++num_loaded_sections;
         }
       }
@@ -656,7 +660,6 @@ SectionType ObjectFileXCOFF::GetSectionType(llvm::StringRef sect_name,
       .Case(".dwinfo", eSectionTypeDWARFDebugInfo)
       .Case(".dwline", eSectionTypeDWARFDebugLine)
       .Case(".dwabrev", eSectionTypeDWARFDebugAbbrev)
-      .Case(".dwrnges", eSectionTypeDWARFDebugRanges)
       .Default(eSectionTypeInvalid);
 
     if (section_type != eSectionTypeInvalid)
@@ -796,7 +799,8 @@ lldb_private::Address ObjectFileXCOFF::GetEntryPointAddress() {
 }
 
 lldb_private::Address ObjectFileXCOFF::GetBaseAddress() {
-  return lldb_private::Address();
+  // Get base address of the section
+  return Address(GetSectionList()->GetSectionAtIndex(0), 0);
 }
 
 ObjectFile::Type ObjectFileXCOFF::CalculateType() {
