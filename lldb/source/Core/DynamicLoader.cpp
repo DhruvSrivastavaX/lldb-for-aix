@@ -114,6 +114,8 @@ ModuleSP DynamicLoader::GetTargetExecutable() {
 void DynamicLoader::UpdateLoadedSections(ModuleSP module, addr_t link_map_addr,
                                          addr_t base_addr,
                                          bool base_addr_is_offset) {
+  Log *log = GetLog(LLDBLog::DynamicLoader);
+  LLDB_LOGF(log, "Ravi: %s::%s : %d", __FILE__, __FUCTION__, __LINE__);
   UpdateLoadedSectionsCommon(module, base_addr, base_addr_is_offset);
 }
 
@@ -131,6 +133,8 @@ void DynamicLoader::UpdateLoadedSectionsCommon(ModuleSP module,
                                                addr_t base_addr,
                                                bool base_addr_is_offset) {
   bool changed;
+  Log *log = GetLog(LLDBLog::DynamicLoader);
+  LLDB_LOGF(log, "Ravi: %s::%s : %d", __FILE__, __FUCTION__, __LINE__);
   module->SetLoadAddress(m_process->GetTarget(), base_addr, base_addr_is_offset,
                          changed);
 }

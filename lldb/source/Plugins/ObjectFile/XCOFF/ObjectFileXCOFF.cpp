@@ -321,6 +321,8 @@ lldb_private::DataExtractor ObjectFileXCOFF::ReadImageData(uint32_t offset, size
 bool ObjectFileXCOFF::SetLoadAddress(Target &target, lldb::addr_t value,
                                    bool value_is_offset) {
   bool changed = false;
+  Log *log = GetLog(LLDBLog::Object);
+  LLDB_LOGF(log, "Ravi: %s::%s : %d", __FILE__, __FUCTION__, __LINE__);
   ModuleSP module_sp = GetModule();
   if (module_sp) {
     size_t num_loaded_sections = 0;

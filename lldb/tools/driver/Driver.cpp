@@ -429,6 +429,7 @@ std::string EscapeString(std::string arg) {
   return '"' + arg + '"';
 }
 
+// Ravi - Call from main() .... 
 int Driver::MainLoop() {
   if (::tcgetattr(STDIN_FILENO, &g_old_stdin_termios) == 0) {
     g_old_stdin_termios_is_valid = true;
@@ -704,6 +705,7 @@ EXAMPLES:
   llvm::outs() << examples << '\n';
 }
 
+// Ravi - Main Loop start here ....
 int main(int argc, char const *argv[]) {
   // Editline uses for example iswprint which is dependent on LC_CTYPE.
   // FIXME: this caused unexpected SIGTRAP on AIX

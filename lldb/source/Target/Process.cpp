@@ -2673,6 +2673,8 @@ Status Process::Launch(ProcessLaunchInfo &launch_info) {
 
 Status Process::LaunchPrivate(ProcessLaunchInfo &launch_info, StateType &state,
                               EventSP &event_sp) {
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOGF(log, "Ravi: %s::%s : %d", __FILE__, __FUCTION__, __LINE__);
   Status error;
   m_abi_sp.reset();
   m_dyld_up.reset();

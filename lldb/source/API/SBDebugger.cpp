@@ -1212,6 +1212,7 @@ void SBDebugger::PushInputReader(SBInputReader &reader) {
   LLDB_INSTRUMENT_VA(this, reader);
 }
 
+// Ravi - Driver::MainLoop() calling this ....
 void SBDebugger::RunCommandInterpreter(bool auto_handle_events,
                                        bool spawn_thread) {
   LLDB_INSTRUMENT_VA(this, auto_handle_events, spawn_thread);

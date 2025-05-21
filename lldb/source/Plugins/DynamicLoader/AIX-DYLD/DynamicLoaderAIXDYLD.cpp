@@ -363,7 +363,7 @@ void DynamicLoaderAIXDYLD::DidAttach() {
 
 void DynamicLoaderAIXDYLD::DidLaunch() {
   Log *log = GetLog(LLDBLog::DynamicLoader);
-  LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
+  LLDB_LOGF(log, "Ravi: %s::%s : %d", __FILE__, __FUCTION__, __LINE__);
 
   ModuleSP executable = GetTargetExecutable();
   if (!executable.get())

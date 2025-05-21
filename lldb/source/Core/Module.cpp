@@ -1484,6 +1484,8 @@ bool Module::SetArchitecture(const ArchSpec &new_arch) {
 
 bool Module::SetLoadAddress(Target &target, lldb::addr_t value,
                             bool value_is_offset, bool &changed) {
+  Log *log = GetLog(LLDBLog::Modules);
+  LLDB_LOGF(log, "Ravi: %s::%s : %d", __FILE__, __FUCTION__, __LINE__);
   ObjectFile *object_file = GetObjectFile();
   if (object_file != nullptr) {
     changed = object_file->SetLoadAddress(target, value, value_is_offset);
