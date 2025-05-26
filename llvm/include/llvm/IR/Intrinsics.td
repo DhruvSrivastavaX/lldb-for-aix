@@ -340,6 +340,9 @@ def IIT_ONE_FIFTH_VEC_ARG : IIT_Base<63>;
 def IIT_ONE_SEVENTH_VEC_ARG : IIT_Base<64>;
 def IIT_V2048: IIT_Vec<2048, 65>;
 def IIT_V4096: IIT_Vec<4096, 66>;
+def IIT_ONE_FOURTH_VEC_ARG : IIT_Base<67>;
+def IIT_ONE_SIXTH_VEC_ARG : IIT_Base<68>;
+def IIT_ONE_EIGHTH_VEC_ARG : IIT_Base<69>;
 }
 
 defvar IIT_all_FixedTypes = !filter(iit, IIT_all,
@@ -483,11 +486,20 @@ class LLVMHalfElementsVectorType<int num>
 class LLVMOneThirdElementsVectorType<int num>
   : LLVMMatchType<num, IIT_ONE_THIRD_VEC_ARG>;
 
+class LLVMOneFourthElementsVectorType<int num>
+  : LLVMMatchType<num, IIT_ONE_FOURTH_VEC_ARG>;
+
 class LLVMOneFifthElementsVectorType<int num>
   : LLVMMatchType<num, IIT_ONE_FIFTH_VEC_ARG>;
 
+class LLVMOneSixthElementsVectorType<int num>
+  : LLVMMatchType<num, IIT_ONE_SIXTH_VEC_ARG>;
+
 class LLVMOneSeventhElementsVectorType<int num>
   : LLVMMatchType<num, IIT_ONE_SEVENTH_VEC_ARG>;
+
+class LLVMOneEighthElementsVectorType<int num>
+  : LLVMMatchType<num, IIT_ONE_EIGHTH_VEC_ARG>;
 
 // Match the type of another intrinsic parameter that is expected to be a
 // vector type (i.e. <N x iM>) but with each element subdivided to
@@ -544,6 +556,7 @@ def llvm_v128i1_ty     : LLVMType<v128i1>;   // 128 x i1
 def llvm_v256i1_ty     : LLVMType<v256i1>;   // 256 x i1
 def llvm_v512i1_ty     : LLVMType<v512i1>;   // 512 x i1
 def llvm_v1024i1_ty    : LLVMType<v1024i1>;  //1024 x i1
+def llvm_v2048i1_ty    : LLVMType<v2048i1>;  //2048 x i1
 def llvm_v4096i1_ty    : LLVMType<v4096i1>;  //4096 x i1
 
 def llvm_v1i8_ty       : LLVMType<v1i8>;     //  1 x i8
@@ -2781,6 +2794,20 @@ def int_vector_deinterleave3 : DefaultAttrsIntrinsic<[LLVMOneThirdElementsVector
                                                      [llvm_anyvector_ty],
                                                      [IntrNoMem]>;
 
+def int_vector_interleave4   : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                                                     [LLVMOneFourthElementsVectorType<0>,
+                                                      LLVMOneFourthElementsVectorType<0>,
+                                                      LLVMOneFourthElementsVectorType<0>,
+                                                      LLVMOneFourthElementsVectorType<0>],
+                                                     [IntrNoMem]>;
+
+def int_vector_deinterleave4 : DefaultAttrsIntrinsic<[LLVMOneFourthElementsVectorType<0>,
+                                                      LLVMOneFourthElementsVectorType<0>,
+                                                      LLVMOneFourthElementsVectorType<0>,
+                                                      LLVMOneFourthElementsVectorType<0>],
+                                                     [llvm_anyvector_ty],
+                                                     [IntrNoMem]>;
+
 def int_vector_interleave5   : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
                                                      [LLVMOneFifthElementsVectorType<0>,
                                                       LLVMOneFifthElementsVectorType<0>,
@@ -2794,6 +2821,24 @@ def int_vector_deinterleave5 : DefaultAttrsIntrinsic<[LLVMOneFifthElementsVector
                                                       LLVMOneFifthElementsVectorType<0>,
                                                       LLVMOneFifthElementsVectorType<0>,
                                                       LLVMOneFifthElementsVectorType<0>],
+                                                     [llvm_anyvector_ty],
+                                                     [IntrNoMem]>;
+
+def int_vector_interleave6   : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                                                     [LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>],
+                                                     [IntrNoMem]>;
+
+def int_vector_deinterleave6 : DefaultAttrsIntrinsic<[LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>,
+                                                      LLVMOneSixthElementsVectorType<0>],
                                                      [llvm_anyvector_ty],
                                                      [IntrNoMem]>;
 
@@ -2814,6 +2859,28 @@ def int_vector_deinterleave7 : DefaultAttrsIntrinsic<[LLVMOneSeventhElementsVect
                                                       LLVMOneSeventhElementsVectorType<0>,
                                                       LLVMOneSeventhElementsVectorType<0>,
                                                       LLVMOneSeventhElementsVectorType<0>],
+                                                     [llvm_anyvector_ty],
+                                                     [IntrNoMem]>;
+
+def int_vector_interleave8   : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                                                     [LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>],
+                                                     [IntrNoMem]>;
+
+def int_vector_deinterleave8 : DefaultAttrsIntrinsic<[LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>,
+                                                      LLVMOneEighthElementsVectorType<0>],
                                                      [llvm_anyvector_ty],
                                                      [IntrNoMem]>;
 
