@@ -95,7 +95,7 @@ protected:
   virtual Status WriteRegisterSet(void *buf, size_t buf_size,
                                   unsigned int regset);
 
-  virtual Status ReadGPR();
+  virtual Status ReadGPR(void *buf);
 
   virtual Status WriteGPR();
 

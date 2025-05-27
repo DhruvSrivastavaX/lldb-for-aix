@@ -20,7 +20,49 @@
 #define DECLARE_REGISTER_INFOS_PPC64LE_STRUCT
 #include "Plugins/Process/Utility/RegisterInfos_ppc64le.h"
 #undef DECLARE_REGISTER_INFOS_PPC64LE_STRUCT
-
+typedef struct _GPR32 {
+  uint32_t r0;
+  uint32_t r1;
+  uint32_t r2;
+  uint32_t r3;
+  uint32_t r4;
+  uint32_t r5;
+  uint32_t r6;
+  uint32_t r7;
+  uint32_t r8;
+  uint32_t r9;
+  uint32_t r10;
+  uint32_t r11;
+  uint32_t r12;
+  uint32_t r13;
+  uint32_t r14;
+  uint32_t r15;
+  uint32_t r16;
+  uint32_t r17;
+  uint32_t r18;
+  uint32_t r19;
+  uint32_t r20;
+  uint32_t r21;
+  uint32_t r22;
+  uint32_t r23;
+  uint32_t r24;
+  uint32_t r25;
+  uint32_t r26;
+  uint32_t r27;
+  uint32_t r28;
+  uint32_t r29;
+  uint32_t r30;
+  uint32_t r31;
+  uint32_t pc;
+  uint32_t msr;
+  uint32_t origr3;
+  uint32_t ctr;
+  uint32_t lr;
+  uint32_t xer;
+  uint32_t cr;
+  uint32_t softe;
+  uint32_t trap;
+} GPR32;
 namespace lldb_private {
 namespace process_aix {
 
@@ -81,12 +123,14 @@ protected:
   Status WriteVSX();
 
   void *GetGPRBuffer() override { return &m_gpr_ppc64le; }
+  void *GetGPR32Buffer() { return &m_gpr_ppc32le; }
 
   void *GetFPRBuffer() override { return &m_fpr_ppc64le; }
 
   size_t GetFPRSize() override { return sizeof(m_fpr_ppc64le); }
 
 private:
+  GPR32 m_gpr_ppc32le; // 64-bit general purpose registers.
   GPR m_gpr_ppc64le; // 64-bit general purpose registers.
   FPR m_fpr_ppc64le; // floating-point registers including extended register.
   VMX m_vmx_ppc64le; // VMX registers.

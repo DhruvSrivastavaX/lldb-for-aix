@@ -90,9 +90,13 @@ NativeRegisterContextAIX::WriteRegisterRaw(uint32_t reg_index,
                               reg_value);
 }
 
-Status NativeRegisterContextAIX::ReadGPR() {
+Status NativeRegisterContextAIX::ReadGPR(void *buffer) {
+  Log *log = GetLog(POSIXLog::Registers);
+  LLDB_LOG(log,"{0} {1}",__FUNCTION__,__LINE__);
+  //return NativeProcessAIX::PtraceWrapper(
+  //    PTRACE_GETREGS, m_thread.GetID(), nullptr, GetGPRBuffer(), GetGPRSize());
   return NativeProcessAIX::PtraceWrapper(
-      PTRACE_GETREGS, m_thread.GetID(), nullptr, GetGPRBuffer(), GetGPRSize());
+      PTRACE_GETREGS, m_thread.GetID(), nullptr, buffer,  0);
 }
 
 Status NativeRegisterContextAIX::WriteGPR() {

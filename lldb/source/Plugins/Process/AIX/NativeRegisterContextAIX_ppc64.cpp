@@ -162,6 +162,8 @@ uint32_t NativeRegisterContextAIX_ppc64::GetUserRegisterCount() const {
 
 Status NativeRegisterContextAIX_ppc64::ReadRegister(
     const RegisterInfo *reg_info, RegisterValue &reg_value) {
+  Log *log = GetLog(POSIXLog::Registers);
+  LLDB_LOG(log,"{0} {1}",__FUNCTION__,__LINE__);
   Status error;
 
   if (!reg_info) {
@@ -228,13 +230,15 @@ Status NativeRegisterContextAIX_ppc64::ReadRegister(
     reg_value.SetFromMemoryData(*reg_info, src, reg_info->byte_size,
                                 eByteOrderLittle, error);
   } else if (IsGPR(reg)) {
-    error = ReadGPR();
+
+    error = ReadGPR(GetGPRBuffer());
     if (error.Fail())
       return error;
 
     uint8_t *src = (uint8_t *) &m_gpr_ppc64le + reg_info->byte_offset;
     reg_value.SetFromMemoryData(*reg_info, src, reg_info->byte_size,
                                 eByteOrderLittle, error);
+    LLDB_LOG(log,"offset {0} size :{1}",reg_info->byte_offset, reg_info->byte_size);
   } else {
     return Status("failed - register wasn't recognized to be a GPR, FPR, VSX "
                   "or VMX, read strategy unknown");
@@ -256,7 +260,7 @@ Status NativeRegisterContextAIX_ppc64::WriteRegister(
                                                : "<unknown register>");
 
   if (IsGPR(reg_index)) {
-    error = ReadGPR();
+    error = ReadGPR(GetGPRBuffer());
     if (error.Fail())
       return error;
 
@@ -353,10 +357,12 @@ Status NativeRegisterContextAIX_ppc64::WriteRegister(
 
 Status NativeRegisterContextAIX_ppc64::ReadAllRegisterValues(
     lldb::WritableDataBufferSP &data_sp) {
+  Log *log = GetLog(POSIXLog::Registers);
+  LLDB_LOG(log,"{0} {1}",__FUNCTION__,__LINE__);
   Status error;
 
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));
-  error = ReadGPR();
+  error = ReadGPR(GetGPRBuffer());
   if (error.Fail())
     return error;
 

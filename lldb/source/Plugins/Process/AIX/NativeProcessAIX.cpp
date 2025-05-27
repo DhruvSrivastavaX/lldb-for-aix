@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "NativeProcessAIX.h"
-
+#include "NativeRegisterContextAIX_ppc64.h"
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -159,6 +159,11 @@ static void PtraceDisplayBytes(int &req, void *data, size_t data_size) {
   StreamString buf;
 
   switch (req) {
+  case PT_REGSET: {
+    DisplayBytes(buf, &data, 8);
+    LLDB_LOGV(log, "DisplayBytes {0}", buf.GetData());
+    break;
+  }
   case PTRACE_POKETEXT: {
     DisplayBytes(buf, &data, 8);
     LLDB_LOGV(log, "PTRACE_POKETEXT {0}", buf.GetData());
@@ -1722,13 +1727,15 @@ void NativeProcessAIX::ThreadWasCreated(NativeThreadAIX &thread) {
 }
 
 #define DECLARE_REGISTER_INFOS_PPC64LE_STRUCT
-#include "Plugins/Process/Utility/RegisterInfos_ppc64le.h"
+//#include "Plugins/Process/Utility/RegisterInfos_ppc64le.h"
 #undef DECLARE_REGISTER_INFOS_PPC64LE_STRUCT
 
 static void GetRegister(lldb::pid_t pid, long long addr, void *buf) {
-  uint64_t val = 0;
-  ptrace64(PT_READ_GPR, pid, addr, 0, (int *)&val);
-  *(uint64_t *)buf = llvm::byteswap<uint64_t>(val);
+  Log *const log = GetLog(POSIXLog::Thread);
+  uint32_t val = 0;
+  val = ptrace64(PT_READ_GPR, pid, addr, 0, 0);
+  *(uint64_t *)buf = llvm::byteswap<uint64_t>((uint64_t)val);
+  LLDB_LOG(log, " addr: {0} val: {1}",addr, val);
 }
 
 static void SetRegister(lldb::pid_t pid, long long addr, void *buf) {
@@ -1764,6 +1771,7 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
 
   Log *log = GetLog(POSIXLog::Ptrace);
 
+    LLDB_LOG(log,"{0} {1} {2}",__FUNCTION__,__LINE__,req);
   PtraceDisplayBytes(req, data, data_size);
 
   errno = 0;
@@ -1786,8 +1794,20 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     }
     closedir(dirproc);
   }
-
-  if (req == PTRACE_GETREGS) {
+//#define GPR GPR32
+  if (req == PT_REGSET) {
+    LLDB_LOG(log,"PT_REGSET {0} {1}",req,pid);
+    ptrace64(req, pid, (long long)data, 0 , 0); 
+    LLDB_LOG(log,"after PT_REGSET {0} {1} ",req,pid);
+    GetRegister(pid, IAR, &(((GPR *)data)->pc));
+    GetRegister(pid, MSR, &(((GPR *)data)->msr));
+    //FIXME: origr3/softe/trap on AIX?
+    GetRegister(pid, CTR, &(((GPR *)data)->ctr));
+    GetRegister(pid, LR, &(((GPR *)data)->lr));
+    GetRegister(pid, XER, &(((GPR *)data)->xer));
+    GetRegister(pid, CR, &(((GPR *)data)->cr));
+  }
+  else if (req == PTRACE_GETREGS) {
     GetRegister(pid, GPR0, &(((GPR *)data)->r0));
     GetRegister(pid, GPR1, &(((GPR *)data)->r1));
     GetRegister(pid, GPR2, &(((GPR *)data)->r2));
@@ -2066,10 +2086,10 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     ret = -1;
   }
 
-  LLDB_LOG(log, "ptrace({0}, {1}, {2}, {3}, {4})={5:x}", req, pid, addr, data,
-           data_size, ret);
+ // LLDB_LOG(log, "ptrace({0}, {1}, {2}, {3}, {4})={5:x}", req, pid, addr, data,
+  //         data_size, ret);
 
-  PtraceDisplayBytes(req, data, data_size);
+ // PtraceDisplayBytes(req, data, data_size);
 
   if (error.Fail())
     LLDB_LOG(log, "ptrace() failed: {0}", error);
