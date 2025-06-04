@@ -1257,6 +1257,8 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   switch (BuiltinID) {
   default:
     return;
+  case Builtin::BI__builtin_stpcpy:
+  case Builtin::BIstpcpy:
   case Builtin::BI__builtin_strcpy:
   case Builtin::BIstrcpy: {
     DiagID = diag::warn_fortify_strlen_overflow;
@@ -1265,6 +1267,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     break;
   }
 
+  case Builtin::BI__builtin___stpcpy_chk:
   case Builtin::BI__builtin___strcpy_chk: {
     DiagID = diag::warn_fortify_strlen_overflow;
     SourceSize = ComputeStrLenArgument(1);
@@ -12303,6 +12306,12 @@ void Sema::CheckImplicitConversion(Expr *E, QualType T, SourceLocation CC,
     // People want to build with -Wshorten-64-to-32 and not -Wconversion.
     if (SourceMgr.isInSystemMacro(CC))
       return;
+
+    if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+      if (UO->getOpcode() == UO_Minus)
+        return DiagnoseImpCast(
+            *this, E, T, CC, diag::warn_impcast_integer_precision_on_negation);
+    }
 
     if (TargetRange.Width == 32 && Context.getIntWidth(E->getType()) == 64)
       return DiagnoseImpCast(*this, E, T, CC, diag::warn_impcast_integer_64_32,
