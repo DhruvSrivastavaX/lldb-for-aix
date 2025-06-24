@@ -763,9 +763,8 @@ public:
       Region *region, const TypeConverter &converter,
       TypeConverter::SignatureConversion *entryConversion = nullptr);
 
-  /// Replace all the uses of the block argument `from` with `to`. This
-  /// function supports both 1:1 and 1:N replacements.
-  void replaceUsesOfBlockArgument(BlockArgument from, ValueRange to);
+  /// Replace all the uses of the block argument `from` with value `to`.
+  void replaceUsesOfBlockArgument(BlockArgument from, Value to);
 
   /// Return the converted value of 'key' with a type defined by the type
   /// converter of the currently executing pattern. Return nullptr in the case
