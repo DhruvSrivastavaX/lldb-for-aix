@@ -106,6 +106,7 @@ bool AIXCore64Header::ParseCoreHeader(lldb_private::DataExtractor &data,
 
     *offset += 104;
     int ret = 0;
+    //Corrected offset for userdata region
     lldb::offset_t offset_to_user = 1216;
     ret = ParseThreadContext(data, offset);
     ret = ParseUserData(data, &offset_to_user);
