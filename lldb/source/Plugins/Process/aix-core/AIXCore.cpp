@@ -105,7 +105,6 @@ bool AIXCore64Header::ParseCoreHeader(lldb_private::DataExtractor &data,
     DataSize = data.GetU64(offset);
 
     *offset += 104;
-    //lldb::offset_t offset_to_user = (*offset + sizeof(ThreadContext64));
     int ret = 0;
     lldb::offset_t offset_to_user = 1216;
     ret = ParseThreadContext(data, offset);
