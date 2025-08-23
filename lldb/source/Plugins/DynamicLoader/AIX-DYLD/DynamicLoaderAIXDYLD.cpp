@@ -237,6 +237,7 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
     
     Log *log = GetLog(LLDBLog::DynamicLoader);
     LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
+    printf("DynamicLoaderAIX_DYLD: loader_offset %d, loader_size %d\n",loader_offset, loader_size);
     static char *buffer = (char *)malloc(loader_size);
     if (buffer == NULL) {
         LLDB_LOG(log, "Buffer allocation failed error: {0}", std::strerror(errno));
@@ -264,6 +265,19 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
         char *filename = &ptr->ldinfo_filename[0];
         char *membername = filename + (strlen(filename) + 1);
         strcpy(ldinfo[i].ldinfo_filename, filename);
+        printf("size ldinfo %d\n",sizeof(struct ld_info));
+        printf("ldinfo[%d].ldinfo_next: 0x%08X\n", i, ldinfo[i].ldinfo_next);
+printf("ldinfo[%d].ldinfo_flags: 0x%08X\n", i, ldinfo[i].ldinfo_flags);
+printf("ldinfo[%d].ldinfo_core: 0x%08X\n", i, ldinfo[i].ldinfo_core);
+printf("ldinfo[%d].ldinfo_textorg: 0x%08X\n", i, ldinfo[i].ldinfo_textorg);
+printf("ldinfo[%d].ldinfo_textsize: 0x%08X\n", i, ldinfo[i].ldinfo_textsize);
+printf("ldinfo[%d].ldinfo_dataorg: 0x%08X\n", i, ldinfo[i].ldinfo_dataorg);
+printf("ldinfo[%d].ldinfo_datasize: 0x%08X\n", i, ldinfo[i].ldinfo_datasize);
+
+// Strings
+printf("Filename: %s\n", filename);
+printf("Membername: %s\n", membername);
+
         
         buffer += ptr->ldinfo_next;
         struct ld_info *ptr2 = &(ldinfo[i]);
@@ -278,6 +292,7 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
         FileSpec file(pathWithMember);
         ModuleSpec module_spec(file, m_process->GetTarget().GetArchitecture());
         LLDB_LOGF(log, "Module :%s", pathWithMember);
+        printf("PathWithMember %s\n",pathWithMember);
         if (ModuleSP module_sp = m_process->GetTarget().GetOrCreateModule(module_spec, true /* notify */)) {
             UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr2->ldinfo_textorg, false, 1);
             UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)ptr2->ldinfo_dataorg, false, 2);
@@ -286,6 +301,64 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
         if (ptr2->ldinfo_next == 0) {
             ptr2 = nullptr;
         } 
+    }
+}
+
+void DynamicLoaderAIXDYLD::FillCoreLoader32Data(lldb_private::DataExtractor &data,
+        uint64_t loader_offset, uint64_t loader_size ) {
+    
+    Log *log = GetLog(LLDBLog::DynamicLoader);
+    LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
+    printf("DynamicLoaderAIX_DYLD: loader_offset %d, loader_size %d\n",loader_offset, loader_size);
+    static char *buffer = (char *)malloc(loader_size);
+    if (buffer == NULL) {
+        LLDB_LOG(log, "Buffer allocation failed error: {0}", std::strerror(errno));
+        return;
+    }
+    char *ptr = buffer, filename[PATH_MAX], membername[32];
+    uint64_t dataorg, textorg, datasize, textsize, core_offset;
+    int next = 1;
+    lldb::offset_t base_offset = loader_offset;
+    while (next != 0)
+    {
+        lldb::offset_t offset = base_offset;
+        next = data.GetU32(&offset);
+        core_offset = data.GetU32(&offset);
+        textorg = data.GetU32(&offset);
+        textsize = data.GetU32(&offset);
+        dataorg = data.GetU32(&offset);
+        datasize = data.GetU32(&offset);
+        printf("next %x, core-offset %x\n",next, core_offset);
+        printf("textorg %x, textsize %x\n",textorg, textsize);
+        printf("dataorg %x,datasize  %x\n",dataorg, datasize);
+
+        size_t s1_index = 0, s2_index = 0;
+        uint8_t byte;
+
+        while ((byte = data.GetU8(&offset)) != '\0') {
+            filename[s1_index++] = static_cast<char>(byte);
+        }
+        filename[s1_index] = '\0';
+        while ((byte = data.GetU8(&offset)) != '\0') {
+            membername[s2_index++] = static_cast<char>(byte);
+        }
+        membername[s2_index] = '\0';
+        base_offset += next;
+        char pathWithMember[PATH_MAX] = {0};
+        if (strlen(membername) > 0) {
+            sprintf(pathWithMember, "%s(%s)", filename, membername);
+        } else {
+            sprintf(pathWithMember, "%s", filename);
+        }
+        
+        FileSpec file(pathWithMember);
+        ModuleSpec module_spec(file, m_process->GetTarget().GetArchitecture());
+        printf("PathWithMember %s\n",pathWithMember);
+        if (ModuleSP module_sp = m_process->GetTarget().GetOrCreateModule(module_spec, true /* notify */)) {
+            UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)textorg, false, 1);
+            UpdateLoadedSectionsByType(module_sp, LLDB_INVALID_ADDRESS, (lldb::addr_t)dataorg, false, 2);
+            // FIXME: .tdata, .bss
+        }
     }
 }
 

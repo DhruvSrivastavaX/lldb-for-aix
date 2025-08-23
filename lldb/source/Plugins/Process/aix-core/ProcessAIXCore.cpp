@@ -1,3 +1,4 @@
+#include <iostream>
 //===-- ProcessAIXCore.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -37,10 +38,12 @@ using namespace lldb_private;
 LLDB_PLUGIN_DEFINE(ProcessAIXCore)
 
 llvm::StringRef ProcessAIXCore::GetPluginDescriptionStatic() {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
   return "AIX core dump plug-in.";
 }
 
 void ProcessAIXCore::Initialize() {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
   static llvm::once_flag g_once_flag;
 
   llvm::call_once(g_once_flag, []() {
@@ -50,32 +53,46 @@ void ProcessAIXCore::Initialize() {
 }
 
 void ProcessAIXCore::Terminate() {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
   PluginManager::UnregisterPlugin(ProcessAIXCore::CreateInstance);
 }
 
 lldb::ProcessSP ProcessAIXCore::CreateInstance(lldb::TargetSP target_sp,
-                                               lldb::ListenerSP listener_sp,
-                                               const FileSpec *crash_file,
-                                               bool can_connect) {
-  lldb::ProcessSP process_sp;
-  if (crash_file && !can_connect) {
-      const size_t header_size = sizeof(AIXCORE::AIXCore64Header);
+        lldb::ListenerSP listener_sp,
+        const FileSpec *crash_file,
+        bool can_connect) {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
+    lldb::ProcessSP process_sp;
+    if (crash_file && !can_connect) {
+        const size_t header_size = sizeof(AIXCORE::AIXCore64Header);
 
-      auto data_sp = FileSystem::Instance().CreateDataBuffer(
-              crash_file->GetPath(), header_size, 0);
+        auto data_sp = FileSystem::Instance().CreateDataBuffer(
+                crash_file->GetPath(), header_size, 0);
 
-      if (data_sp && data_sp->GetByteSize() == header_size) {
-          AIXCORE::AIXCore64Header aixcore_header;
-          DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
-          lldb::offset_t data_offset = 0;
-          if(aixcore_header.ParseCoreHeader(data, &data_offset)) {
-              process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
-                      *crash_file);
-          }
-      }
+        if (data_sp && data_sp->GetByteSize()) {
+            DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
+            lldb::offset_t offset = 0;
+            offset += 4; // Skipping to the coredump version
+            uint32_t magic = data.GetU32(&offset);
+            printf("Magic %x", magic);
+            if (magic == 0xfeeddb1) {
+                AIXCORE::AIXCore32Header aixcore_header;
+                if(aixcore_header.ParseCoreHeader(data, &offset)) {
+                    process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
+                            *crash_file);
+                }
+            }
+            else if (magic == 0xfeeddb2) {
+                AIXCORE::AIXCore64Header aixcore_header;
+                if(aixcore_header.ParseCoreHeader(data, &offset)) {
+                    process_sp = std::make_shared<ProcessAIXCore>(target_sp, listener_sp,
+                            *crash_file);
+                }
+            }
+        }
 
-  }
-  return process_sp;
+    }
+    return process_sp;
 }
 
 // ProcessAIXCore constructor
@@ -95,19 +112,53 @@ ProcessAIXCore::~ProcessAIXCore() {
 }
 
 lldb::addr_t ProcessAIXCore::AddAddressRanges(AIXCORE::AIXCore64Header header) {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
   const lldb::addr_t addr = header.StackBaseAddr;
   FileRange file_range(header.StackOffset, header.StackSize);
   VMRangeToFileOffset::Entry range_entry(addr, header.StackSize, file_range);
 
   if (header.StackSize > 0) {
+    std::cout << "[LOG] Class: ProcessAIXCore, line: " << __LINE__ << std::endl;
     VMRangeToFileOffset::Entry *last_entry = m_core_aranges.Back();
     if (last_entry &&
         last_entry->GetRangeEnd() == range_entry.GetRangeBase() &&
         last_entry->data.GetRangeEnd() == range_entry.data.GetRangeBase() &&
         last_entry->GetByteSize() == last_entry->data.GetByteSize()) {
+    std::cout << "[LOG] Class: ProcessAIXCore, line: " << __LINE__ << std::endl;
         last_entry->SetRangeEnd(range_entry.GetRangeEnd());
         last_entry->data.SetRangeEnd(range_entry.data.GetRangeEnd());
     } else {
+    std::cout << "[LOG] Class: ProcessAIXCore, line: " << __LINE__ << std::endl;
+        m_core_aranges.Append(range_entry);
+    }
+  }
+
+  const uint32_t permissions = lldb::ePermissionsReadable |
+      lldb::ePermissionsWritable;
+
+  m_core_range_infos.Append(
+      VMRangeToPermissions::Entry(addr, header.StackSize, permissions));
+
+  return addr;
+}
+lldb::addr_t ProcessAIXCore::AddAddressRanges(AIXCORE::AIXCore32Header header) {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
+  const lldb::addr_t addr = header.StackBaseAddr;
+  FileRange file_range(header.StackOffset, header.StackSize);
+  VMRangeToFileOffset::Entry range_entry(addr, header.StackSize, file_range);
+
+  if (header.StackSize > 0) {
+    std::cout << "[LOG] Class: ProcessAIXCore, line: " << __LINE__ << std::endl;
+    VMRangeToFileOffset::Entry *last_entry = m_core_aranges.Back();
+    if (last_entry &&
+        last_entry->GetRangeEnd() == range_entry.GetRangeBase() &&
+        last_entry->data.GetRangeEnd() == range_entry.data.GetRangeBase() &&
+        last_entry->GetByteSize() == last_entry->data.GetByteSize()) {
+    std::cout << "[LOG] Class: ProcessAIXCore, line: " << __LINE__ << std::endl;
+        last_entry->SetRangeEnd(range_entry.GetRangeEnd());
+        last_entry->data.SetRangeEnd(range_entry.data.GetRangeEnd());
+    } else {
+    std::cout << "[LOG] Class: ProcessAIXCore, line: " << __LINE__ << std::endl;
         m_core_aranges.Append(range_entry);
     }
   }
@@ -123,6 +174,7 @@ lldb::addr_t ProcessAIXCore::AddAddressRanges(AIXCORE::AIXCore64Header header) {
 
 bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
                                 bool plugin_specified_by_name) {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
 
     if (!m_core_module_sp && FileSystem::Instance().Exists(m_core_file)) {
         ModuleSpec core_module_spec(m_core_file, target_sp->GetArchitecture());
@@ -131,15 +183,18 @@ bool ProcessAIXCore::CanDebug(lldb::TargetSP target_sp,
         if (m_core_module_sp) {
             ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
             if (core_objfile && core_objfile->GetType() == ObjectFile::eTypeCoreFile){
+    std::cout << "[LOG] Class: ProcessAIXCore, YESS" << std::endl;
                 return true;
             }
         }
     }
+    std::cout << "[LOG] Class: ProcessAIXCore, NOO" << std::endl;
     return false;
 
 }
 
 ArchSpec ProcessAIXCore::GetArchitecture() {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
 
   ArchSpec arch = m_core_module_sp->GetObjectFile()->GetArchitecture();
 
@@ -158,6 +213,7 @@ lldb_private::DynamicLoader *ProcessAIXCore::GetDynamicLoader() {
 }
 
 void ProcessAIXCore::ParseAIXCoreFile() {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
     
     Log *log = GetLog(LLDBLog::Process);
     AIXSigInfo siginfo;
@@ -187,8 +243,39 @@ void ProcessAIXCore::ParseAIXCoreFile() {
 
 }
 
+void ProcessAIXCore::ParseAIXCore32File() {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
+    
+    Log *log = GetLog(LLDBLog::Process);
+    AIXSigInfo siginfo;
+    ThreadData thread_data;
+    
+    const lldb_private::UnixSignals &unix_signals = *GetUnixSignals();
+    const ArchSpec &arch = GetArchitecture();
+    
+    siginfo.Parse(m_aixcore32_header, arch, unix_signals);
+    thread_data.siginfo = siginfo;
+    SetID(m_aixcore32_header.User.process.pi_pid);
+    
+    thread_data.name.assign (m_aixcore32_header.User.process.pi_comm,
+            strnlen (m_aixcore32_header.User.process.pi_comm,
+                sizeof (m_aixcore32_header.User.process.pi_comm)));
+    
+    lldb::DataBufferSP data_buffer_sp(new lldb_private::DataBufferHeap(sizeof(m_aixcore32_header.Fault.context), 0));
+    
+    memcpy(static_cast<void *>(const_cast<uint8_t *>(data_buffer_sp->GetBytes())),
+            &m_aixcore32_header.Fault.context, sizeof(m_aixcore32_header.Fault.context));
+    
+    lldb_private::DataExtractor data(data_buffer_sp, lldb::eByteOrderBig, 8);
+
+    thread_data.gpregset = DataExtractor(data, 0, sizeof(m_aixcore32_header.Fault.context));
+    m_thread_data.push_back(thread_data);
+    LLDB_LOGF(log, "ProcessAIXCore: Parsing Complete!");
+
+}
 // Process Control
 Status ProcessAIXCore::DoLoadCore() {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
     
     Status error;
     if (!m_core_module_sp) {
@@ -200,10 +287,36 @@ Status ProcessAIXCore::DoLoadCore() {
     Log *log = GetLog(LLDBLog::Process);
     
     if (file) {
-        const size_t header_size = sizeof(AIXCORE::AIXCore64Header);
         auto data_sp = FileSystem::Instance().CreateDataBuffer(
                 file.GetPath(), -1, 0);
-        if (data_sp && data_sp->GetByteSize() != 0) {
+        if (data_sp && data_sp->GetByteSize()) {
+            DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
+            lldb::offset_t offset = 0;
+            offset += 4; // Skipping to the coredump version
+            uint32_t magic = data.GetU32(&offset);
+            printf("Magic %x", magic);
+            offset = 0;
+            if (magic == 0xfeeddb1) {
+                m_is64bit = false;
+                m_aixcore32_header.ParseCoreHeader(data, &offset);
+                lldb::addr_t addr = AddAddressRanges(m_aixcore32_header);
+                if (addr == LLDB_INVALID_ADDRESS)
+                    LLDB_LOGF(log, "ProcessAIXCore: Invalid base address. Stack information will be limited");
+                auto dyld = static_cast<DynamicLoaderAIXDYLD *>(GetDynamicLoader());
+                dyld->FillCoreLoader32Data(data, m_aixcore32_header.LoaderOffset,
+                        m_aixcore32_header.LoaderSize);
+            }
+            else if (magic == 0xfeeddb2) {
+                m_aixcore_header.ParseCoreHeader(data, &offset);
+                lldb::addr_t addr = AddAddressRanges(m_aixcore_header);
+                if (addr == LLDB_INVALID_ADDRESS)
+                    LLDB_LOGF(log, "ProcessAIXCore: Invalid base address. Stack information will be limited");
+                auto dyld = static_cast<DynamicLoaderAIXDYLD *>(GetDynamicLoader());
+                dyld->FillCoreLoaderData(data, m_aixcore_header.LoaderOffset,
+                        m_aixcore_header.LoaderSize);
+            }
+        }
+/*        if (data_sp && data_sp->GetByteSize() != 0) {
             
             DataExtractor data(data_sp, lldb::eByteOrderBig, 4);
             lldb::offset_t data_offset = 0;
@@ -215,7 +328,7 @@ Status ProcessAIXCore::DoLoadCore() {
             dyld->FillCoreLoaderData(data, m_aixcore_header.LoaderOffset,
                     m_aixcore_header.LoaderSize);
 
-        } else {
+        } */else {
             error = Status::FromErrorString("invalid data");
             return error;
         }
@@ -225,7 +338,10 @@ Status ProcessAIXCore::DoLoadCore() {
     }
 
     m_thread_data_valid = true;
-    ParseAIXCoreFile();
+    if (m_is64bit)
+        ParseAIXCoreFile();
+    else
+        ParseAIXCore32File();
     ArchSpec arch(m_core_module_sp->GetArchitecture());
 
     ArchSpec target_arch = GetTarget().GetArchitecture();
@@ -251,6 +367,7 @@ Status ProcessAIXCore::DoLoadCore() {
 bool ProcessAIXCore::DoUpdateThreadList(ThreadList &old_thread_list,
                                         ThreadList &new_thread_list) 
 {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
     const ThreadData &td = m_thread_data[0];
     
     lldb::ThreadSP thread_sp = 
@@ -265,6 +382,7 @@ void ProcessAIXCore::RefreshStateAfterStop() {}
 // Process Memory
 size_t ProcessAIXCore::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
                                   Status &error) {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
   if(addr == LLDB_INVALID_ADDRESS)
       return 0;
 
@@ -278,6 +396,7 @@ size_t ProcessAIXCore::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
 
 size_t ProcessAIXCore::DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
                                     Status &error) {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
     ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
     if (core_objfile == nullptr)
         return 0;
@@ -322,6 +441,7 @@ size_t ProcessAIXCore::DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
 
 Status ProcessAIXCore::DoGetMemoryRegionInfo(lldb::addr_t load_addr,
                                               MemoryRegionInfo &region_info) {
+    std::cout << "[LOG] Class: ProcessAIXCore, Function: " << __FUNCTION__ << std::endl;
     return Status();
 }
 

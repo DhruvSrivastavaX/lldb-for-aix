@@ -1,3 +1,4 @@
+#include <iostream>
 //===-- AIXCore.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -23,10 +24,128 @@ using namespace lldb;
 using namespace lldb_private;
 
 AIXCore64Header::AIXCore64Header() { memset(this, 0, sizeof(AIXCore64Header)); }
+AIXCore32Header::AIXCore32Header() { memset(this, 0, sizeof(AIXCore32Header)); }
 
+
+bool AIXCore32Header::ParseRegisterContext(lldb_private::DataExtractor &data,
+                lldb::offset_t *offset) {
+    std::cout << "[LOG] Class: AIXCore32, Function: " << __FUNCTION__ << std::endl;
+    // Not parsing due to difference in context64 and mstsave32
+    *offset += 20; // skip till curid in mstsave32
+    Fault.context.excp_type = data.GetU32(offset);
+    Fault.context.pc = data.GetU32(offset);
+    Fault.context.msr = data.GetU32(offset);
+    Fault.context.cr = data.GetU32(offset);
+    Fault.context.lr = data.GetU32(offset);
+    printf("cr %x\n",Fault.context.cr);
+    printf("lr %x\n",Fault.context.lr);
+    Fault.context.ctr = data.GetU32(offset);
+    Fault.context.xer = data.GetU32(offset);
+    // need to skip 0-39 U32s after this upto gpr
+    /* *offset += 8; // mq, tid
+    Fault.context.fpscr = data.GetU32(offset);
+    Fault.context.fpeu = data.GetU8(offset);
+    Fault.context.fpinfo = data.GetU8(offset);
+    Fault.context.fpscr24_31 = data.GetU8(offset);
+    */
+    for(int i = 0; i < 40; i++)
+        data.GetU32(offset);
+    for(int i = 0; i < 32; i++) {
+        Fault.context.gpr[i] = data.GetU32(offset);
+        printf("gpr[%d] %x\n",i,Fault.context.gpr[i]);
+    }
+    for(int i = 0; i < 32; i++)
+        Fault.context.fpr[i] = data.GetU32(offset);
+    printf("excp_type %d, pc %d\n",Fault.context.excp_type, Fault.context.pc);
+    return true;
+}
+
+bool AIXCore32Header::ParseThreadContext(lldb_private::DataExtractor &data,
+                lldb::offset_t *offset) {
+    std::cout << "[LOG] Class: AIXCore32, Function: " << __FUNCTION__ << std::endl;
+    lldb::offset_t offset_to_regctx = *offset; 
+    offset_to_regctx += sizeof(thrdsinfo64);
+    Fault.thread.ti_tid = data.GetU32(offset);
+    Fault.thread.ti_pid = data.GetU32(offset);
+    printf("ti_tid: 0x%08X\n", Fault.thread.ti_tid);
+    printf("ti_pid: 0x%08X\n", Fault.thread.ti_pid);
+    int ret = ParseRegisterContext(data, &offset_to_regctx);
+    return true;
+}
+ 
+bool AIXCore32Header::ParseUserData(lldb_private::DataExtractor &data,
+                lldb::offset_t *offset) {
+    std::cout << "[LOG] Class: AIXCore32, Function: " << __FUNCTION__ << std::endl;
+    User.process.pi_pid = data.GetU32(offset); 
+    User.process.pi_ppid = data.GetU32(offset); 
+    User.process.pi_sid = data.GetU32(offset); 
+    User.process.pi_pgrp = data.GetU32(offset); 
+    User.process.pi_uid = data.GetU32(offset); 
+    User.process.pi_suid = data.GetU32(offset);
+    printf("pi_pid: 0x%08X\n", User.process.pi_pid);
+printf("pi_ppid: 0x%08X\n", User.process.pi_ppid);
+printf("pi_sid: 0x%08X\n", User.process.pi_sid);
+printf("pi_pgrp: 0x%08X\n", User.process.pi_pgrp);
+printf("pi_uid: 0x%08X\n", User.process.pi_uid);
+printf("pi_suid: 0x%08X\n", User.process.pi_suid);
+
+    return true;
+}
+
+bool AIXCore32Header::ParseCoreHeader(lldb_private::DataExtractor &data,
+                            lldb::offset_t *offset) {
+    std::cout << "[LOG] Class: AIXCore32, Function: " << __FUNCTION__ << std::endl;
+    SignalNum = data.GetU8(offset);  
+    Flag = data.GetU8(offset);  
+    Entries = data.GetU16(offset);  
+    Version = data.GetU32(offset);
+    FDInfo = data.GetU64(offset);
+    printf("SignalNum: 0x%02X\n", SignalNum);
+    printf("Flag: 0x%02X\n", Flag);
+    printf("Entries: 0x%04X\n", Entries);
+    printf("Version: 0x%08X\n", Version);
+    printf("FDInfo: 0x%016llX\n", FDInfo);
+
+    LoaderOffset = data.GetU64(offset);
+    LoaderSize = data.GetU64(offset);
+    NumberOfThreads = data.GetU32(offset);
+    Reserved0 = data.GetU32(offset);
+    ThreadContextOffset = data.GetU64(offset);
+    NumSegRegion = data.GetU64(offset);
+    SegRegionOffset = data.GetU64(offset);
+    StackOffset = data.GetU64(offset);
+    StackBaseAddr = data.GetU64(offset);
+    StackSize = data.GetU64(offset);
+    DataRegionOffset = data.GetU64(offset);
+    DataBaseAddr = data.GetU64(offset);
+    DataSize = data.GetU64(offset);
+printf("LoaderOffset: 0x%016llX\n", LoaderOffset);
+printf("LoaderSize: 0x%016llX\n", LoaderSize);
+printf("NumberOfThreads: 0x%08X\n", NumberOfThreads);
+printf("Reserved0: 0x%08X\n", Reserved0);
+printf("ThreadContextOffset: 0x%016llX\n", ThreadContextOffset);
+printf("NumSegRegion: 0x%016llX\n", NumSegRegion);
+printf("SegRegionOffset: 0x%016llX\n", SegRegionOffset);
+printf("StackOffset: 0x%016llX\n", StackOffset);
+printf("StackBaseAddr: 0x%016llX\n", StackBaseAddr);
+printf("StackSize: 0x%016llX\n", StackSize);
+printf("DataRegionOffset: 0x%016llX\n", DataRegionOffset);
+printf("DataBaseAddr: 0x%016llX\n", DataBaseAddr);
+printf("DataSize: 0x%016llX\n", DataSize);
+
+
+    *offset += 104;
+    lldb::offset_t offset_to_user = (*offset + sizeof(mstsave32) +
+            sizeof(thrdsinfo64));
+    int ret = 0;
+    ret = ParseThreadContext(data, offset);
+    ret = ParseUserData(data, &offset_to_user);
+    return true;
+}
 
 bool AIXCore64Header::ParseRegisterContext(lldb_private::DataExtractor &data,
                 lldb::offset_t *offset) {
+    std::cout << "[LOG] Class: AIXCore, Function: " << __FUNCTION__ << std::endl;
     // The data is arranged in this order in this coredump file
     // so we have to fetch in this exact order. But need to change
     // the context structure order according to Infos_ppc64
@@ -53,6 +172,7 @@ bool AIXCore64Header::ParseRegisterContext(lldb_private::DataExtractor &data,
 }
 bool AIXCore64Header::ParseThreadContext(lldb_private::DataExtractor &data,
                 lldb::offset_t *offset) {
+    std::cout << "[LOG] Class: AIXCore, Function: " << __FUNCTION__ << std::endl;
 
     lldb::offset_t offset_to_regctx = *offset; 
     offset_to_regctx += sizeof(thrdentry64);
@@ -64,6 +184,7 @@ bool AIXCore64Header::ParseThreadContext(lldb_private::DataExtractor &data,
  
 bool AIXCore64Header::ParseUserData(lldb_private::DataExtractor &data,
                 lldb::offset_t *offset) {
+    std::cout << "[LOG] Class: AIXCore, Function: " << __FUNCTION__ << std::endl;
     User.process.pi_pid = data.GetU32(offset); 
     User.process.pi_ppid = data.GetU32(offset); 
     User.process.pi_sid = data.GetU32(offset); 
@@ -83,6 +204,7 @@ bool AIXCore64Header::ParseUserData(lldb_private::DataExtractor &data,
 
 bool AIXCore64Header::ParseCoreHeader(lldb_private::DataExtractor &data,
                             lldb::offset_t *offset) {
+    std::cout << "[LOG] Class: AIXCore, Function: " << __FUNCTION__ << std::endl;
 
     SignalNum = data.GetU8(offset);  
     Flag = data.GetU8(offset);  

@@ -41,10 +41,12 @@ ThreadAIXCore::ThreadAIXCore(Process &process, const ThreadData &td)
 ThreadAIXCore::~ThreadAIXCore() { DestroyThread(); }
 
 void ThreadAIXCore::RefreshStateAfterStop() {
+    std::cout << "[LOG] Class: ThreadAIXCore, Function: " << __FUNCTION__ << std::endl;
   GetRegisterContext()->InvalidateIfNeeded(false);
 }
 
 RegisterContextSP ThreadAIXCore::GetRegisterContext() {
+    std::cout << "[LOG] Class: ThreadAIXCore, Function: " << __FUNCTION__ << std::endl;
   if (!m_reg_context_sp) {
     m_reg_context_sp = CreateRegisterContextForFrame(nullptr);
   }
@@ -53,6 +55,7 @@ RegisterContextSP ThreadAIXCore::GetRegisterContext() {
 
 RegisterContextSP
 ThreadAIXCore::CreateRegisterContextForFrame(StackFrame *frame) {
+    std::cout << "[LOG] Class: ThreadAIXCore, Function: " << __FUNCTION__ << __LINE__ << std::endl;
   RegisterContextSP reg_ctx_sp;
   uint32_t concrete_frame_idx = 0;
 
@@ -65,6 +68,8 @@ ThreadAIXCore::CreateRegisterContextForFrame(StackFrame *frame) {
       return m_thread_reg_ctx_sp;
 
     ProcessAIXCore *process = static_cast<ProcessAIXCore *>(GetProcess().get());
+    //if (process->m_is64bit == false)
+    //    return reg_ctx_sp;
     ArchSpec arch = process->GetArchitecture();
     RegisterInfoInterface *reg_interface = nullptr;
 
@@ -85,6 +90,7 @@ ThreadAIXCore::CreateRegisterContextForFrame(StackFrame *frame) {
 }
 
 bool ThreadAIXCore::CalculateStopInfo() {
+    std::cout << "[LOG] Class: ThreadAIXCore, Function: " << __FUNCTION__ << std::endl;
   ProcessSP process_sp(GetProcess());
   if (!process_sp)
     return false;
@@ -109,6 +115,14 @@ bool ThreadAIXCore::CalculateStopInfo() {
 
 void AIXSigInfo::Parse(const AIXCORE::AIXCore64Header data, const ArchSpec &arch,
                               const lldb_private::UnixSignals &unix_signals) {
+    std::cout << "[LOG] Class: ThreadAIXCore, Function: " << __FUNCTION__ << std::endl;
+    si_signo = data.SignalNum;
+    sigfault.si_addr = data.Fault.context.pc;
+}
+
+void AIXSigInfo::Parse(const AIXCORE::AIXCore32Header data, const ArchSpec &arch,
+                              const lldb_private::UnixSignals &unix_signals) {
+    std::cout << "[LOG] Class: ThreadAIXCore, Function: " << __FUNCTION__ << std::endl;
     si_signo = data.SignalNum;
     sigfault.si_addr = data.Fault.context.pc;
 }
@@ -116,11 +130,13 @@ void AIXSigInfo::Parse(const AIXCORE::AIXCore64Header data, const ArchSpec &arch
 AIXSigInfo::AIXSigInfo() { memset(this, 0, sizeof(AIXSigInfo)); }
 
 size_t AIXSigInfo::GetSize(const lldb_private::ArchSpec &arch) {
+    std::cout << "[LOG] Class: ThreadAIXCore, Function: " << __FUNCTION__ << std::endl;
     return sizeof(AIXSigInfo);
 }
 
 std::string AIXSigInfo::GetDescription(
     const lldb_private::UnixSignals &unix_signals) const {
+    std::cout << "[LOG] Class: ThreadAIXCore, Function: " << __FUNCTION__ << std::endl;
       return unix_signals.GetSignalDescription(si_signo, 0,
                                               sigfault.si_addr);
 

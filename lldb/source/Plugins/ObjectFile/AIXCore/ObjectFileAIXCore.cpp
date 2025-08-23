@@ -1,3 +1,4 @@
+#include <iostream>
 //===-- ObjectFileAIXCore.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -43,12 +44,14 @@ bool m_is_core = false;
 
 // Static methods.
 void ObjectFileAIXCore::Initialize() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                 GetPluginDescriptionStatic(), CreateInstance,
                                 CreateMemoryInstance, GetModuleSpecifications);
 }
 
 void ObjectFileAIXCore::Terminate() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
@@ -108,6 +111,7 @@ size_t ObjectFileAIXCore::GetModuleSpecifications(
     const lldb_private::FileSpec &file, lldb::DataBufferSP &data_sp,
     lldb::offset_t data_offset, lldb::offset_t file_offset,
     lldb::offset_t length, lldb_private::ModuleSpecList &specs) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   const size_t initial_count = specs.GetSize();
 
   if (ObjectFileAIXCore::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
@@ -126,8 +130,8 @@ static bool AIXCoreHeaderCheckFromMagic(uint32_t magic) {
     bool ret = false;
     switch (magic) {
         case AIXCORE32: 
-            LLDB_LOGF(log, "ObjectFileAIXCore: 32-bit not supported");
-            break;
+         //   LLDB_LOGF(log, "ObjectFileAIXCore: 32-bit not supported");
+          //  break;
         case AIXCORE64:
             m_is_core = true;
             ret = true; 
@@ -141,6 +145,7 @@ static bool AIXCoreHeaderCheckFromMagic(uint32_t magic) {
 bool ObjectFileAIXCore::MagicBytesMatch(DataBufferSP &data_sp,
                                     lldb::addr_t data_offset,
                                     lldb::addr_t data_length) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   lldb_private::DataExtractor data; 
   data.SetData(data_sp, data_offset, data_length);
   lldb::offset_t offset = 0;
@@ -150,27 +155,33 @@ bool ObjectFileAIXCore::MagicBytesMatch(DataBufferSP &data_sp,
 }
 
 bool ObjectFileAIXCore::ParseHeader() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
 
   return false;
 }
 
 ByteOrder ObjectFileAIXCore::GetByteOrder() const {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return eByteOrderBig;
 }
 
 bool ObjectFileAIXCore::IsExecutable() const {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return false;
 }
 
 uint32_t ObjectFileAIXCore::GetAddressByteSize() const {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
     return 8;
 }
 
 AddressClass ObjectFileAIXCore::GetAddressClass(addr_t file_addr) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return AddressClass::eUnknown;
 }
 
 lldb::SymbolType ObjectFileAIXCore::MapSymbolType(llvm::object::SymbolRef::Type sym_type) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   if (sym_type == llvm::object::SymbolRef::ST_Function)
     return lldb::eSymbolTypeCode;
   else if (sym_type == llvm::object::SymbolRef::ST_Data)
@@ -179,45 +190,56 @@ lldb::SymbolType ObjectFileAIXCore::MapSymbolType(llvm::object::SymbolRef::Type 
 }
 
 void ObjectFileAIXCore::ParseSymtab(Symtab &lldb_symtab) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
 }
 
 bool ObjectFileAIXCore::IsStripped() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return false;
 }
 
 void ObjectFileAIXCore::CreateSections(SectionList &unified_section_list) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
 }
 
 void ObjectFileAIXCore::Dump(Stream *s) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
 }
 
 ArchSpec ObjectFileAIXCore::GetArchitecture() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   ArchSpec arch_spec = ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
   return arch_spec;
 }
 
 UUID ObjectFileAIXCore::GetUUID() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return UUID();
 }
 
 uint32_t ObjectFileAIXCore::GetDependentModules(FileSpecList &files) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   
     auto original_size = files.GetSize();
     return files.GetSize() - original_size;
 }
 
 Address ObjectFileAIXCore::GetImageInfoAddress(Target *target) {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return Address();
 }
 
 lldb_private::Address ObjectFileAIXCore::GetBaseAddress() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return lldb_private::Address();
 }
 ObjectFile::Type ObjectFileAIXCore::CalculateType() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return eTypeCoreFile;
 }
 
 ObjectFile::Strata ObjectFileAIXCore::CalculateStrata() {
+    std::cout << "[LOG] Class: ObjectFileAIXCore, Function: " << __FUNCTION__ << std::endl;
   return eStrataUnknown;
 }
 

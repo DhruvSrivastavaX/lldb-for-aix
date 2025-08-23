@@ -393,7 +393,7 @@ void StackFrameList::FetchOnlyConcreteFramesUpTo(uint32_t end_idx) {
   // which can lazily query the unwinder to create frames.
   m_frames.resize(num_frames);
 }
-
+#include <iostream>
 bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
                                      InterruptionControl allow_interrupt) {
   Unwind &unwinder = m_thread.GetUnwinder();
@@ -418,6 +418,7 @@ bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
   }
 
   StackFrameSP unwind_frame_sp;
+  std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
   Debugger &dbg = m_thread.GetProcess()->GetTarget().GetDebugger();
   do {
     uint32_t idx = m_concrete_frames_fetched++;
@@ -425,12 +426,16 @@ bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
     lldb::addr_t cfa = LLDB_INVALID_ADDRESS;
     bool behaves_like_zeroth_frame = (idx == 0);
     if (idx == 0) {
+  std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
       // We might have already created frame zero, only create it if we need
       // to.
       if (m_frames.empty()) {
+  std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
         RegisterContextSP reg_ctx_sp(m_thread.GetRegisterContext());
 
+  std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
         if (reg_ctx_sp) {
+  std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
           const bool success = unwinder.GetFrameInfoAtIndex(
               idx, cfa, pc, behaves_like_zeroth_frame);
           // There shouldn't be any way not to get the frame info for frame
@@ -445,14 +450,17 @@ bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
               m_thread.shared_from_this(), m_frames.size(), idx, reg_ctx_sp,
               cfa, pc, behaves_like_zeroth_frame, nullptr);
           m_frames.push_back(unwind_frame_sp);
+    std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
         }
       } else {
+  std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
         unwind_frame_sp = m_frames.front();
         cfa = unwind_frame_sp->m_id.GetCallFrameAddress();
       }
     } else {
       // Check for interruption when building the frames.
       // Do the check in idx > 0 so that we'll always create a 0th frame.
+  std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
       if (allow_interrupt &&
           INTERRUPT_REQUESTED(dbg, "Interrupted having fetched {0} frames",
                               m_frames.size())) {
@@ -472,6 +480,7 @@ bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
           m_thread.shared_from_this(), m_frames.size(), idx, cfa, cfa_is_valid,
           pc, StackFrame::Kind::Regular, behaves_like_zeroth_frame, nullptr);
 
+  std::cout << "[LOG] Class: StackFrameList, Function: " << __FUNCTION__ << __LINE__ << std::endl;
       // Create synthetic tail call frames between the previous frame and the
       // newly-found frame. The new frame's index may change after this call,
       // although its concrete index will stay the same.
