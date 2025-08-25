@@ -1,4 +1,3 @@
-#include <iostream>
 //===-- RegisterContextCoreAIX_ppc64.cpp ------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -53,24 +52,20 @@ RegisterContextCoreAIX_ppc64::RegisterContextCoreAIX_ppc64(
 }
 
 size_t RegisterContextCoreAIX_ppc64::GetFPRSize() const {
-    std::cout << "[LOG] Class: RegisterContextCoreAIX_ppc64, Function: " << __FUNCTION__ << std::endl;
   return k_num_fpr_registers_ppc64le * sizeof(uint64_t);
 }
 
 size_t RegisterContextCoreAIX_ppc64::GetVMXSize() const {
-    std::cout << "[LOG] Class: RegisterContextCoreAIX_ppc64, Function: " << __FUNCTION__ << std::endl;
   return (k_num_vmx_registers_ppc64le - 1) * sizeof(uint64_t) * 2 +
          sizeof(uint32_t);
 }
 
 size_t RegisterContextCoreAIX_ppc64::GetVSXSize() const {
-    std::cout << "[LOG] Class: RegisterContextCoreAIX_ppc64, Function: " << __FUNCTION__ << std::endl;
   return k_num_vsx_registers_ppc64le * sizeof(uint64_t) * 2;
 }
 
 bool RegisterContextCoreAIX_ppc64::ReadRegister(
     const RegisterInfo *reg_info, RegisterValue &value) {
-    std::cout << "[LOG] Class: RegisterContextCoreAIX_ppc64, Function: " << __FUNCTION__ << std::endl;
   lldb::offset_t offset = reg_info->byte_offset;
 
   if (IsFPR(reg_info->kinds[lldb::eRegisterKindLLDB])) {
@@ -137,6 +132,5 @@ bool RegisterContextCoreAIX_ppc64::ReadRegister(
 
 bool RegisterContextCoreAIX_ppc64::WriteRegister(
     const RegisterInfo *reg_info, const RegisterValue &value) {
-    std::cout << "[LOG] Class: RegisterContextCoreAIX_ppc64, Function: " << __FUNCTION__ << std::endl;
   return false;
 }
