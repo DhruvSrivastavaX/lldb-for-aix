@@ -171,7 +171,7 @@ struct RegContext {
         uint64_t ExtendedProcEntry;   /* Extended procentry64 information */
         uint64_t Reserved[2];
 
-        struct ThreadContext64 Fault;
+        struct ThreadContext32 Fault;
 
         struct UserData32 User;
 
