@@ -114,6 +114,8 @@ struct RegContext {
 
         struct UserData User;
 
+        std::vector<ThreadContext64> threads;
+
         AIXCore64Header();
 
         bool ParseCoreHeader(lldb_private::DataExtractor &data,
@@ -171,10 +173,12 @@ struct RegContext {
         uint64_t ExtendedProcEntry;   /* Extended procentry64 information */
         uint64_t Reserved[2];
 
-        struct ThreadContext64 Fault;
+        struct ThreadContext32 Fault;
 
         struct UserData32 User;
 
+        std::vector<ThreadContext32> threads;
+        
         AIXCore32Header();
 
         bool ParseCoreHeader(lldb_private::DataExtractor &data,
