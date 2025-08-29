@@ -297,6 +297,7 @@ void ProcessAIXCore::ParseAIXCore32File() {
                                                                                 
         LLDB_LOGF(log, "ProcessAIXCore: Parsing Complete! tid %d\n",i); 
     }
+
 }
 // Process Control
 Status ProcessAIXCore::DoLoadCore() {
