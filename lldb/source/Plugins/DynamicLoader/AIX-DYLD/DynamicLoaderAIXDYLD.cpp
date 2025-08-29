@@ -287,6 +287,7 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
             ptr2 = nullptr;
         } 
     }
+    free(buffer);
 }
 
 void DynamicLoaderAIXDYLD::FillCoreLoader32Data(lldb_private::DataExtractor &data,
@@ -299,7 +300,7 @@ void DynamicLoaderAIXDYLD::FillCoreLoader32Data(lldb_private::DataExtractor &dat
         LLDB_LOG(log, "Buffer allocation failed error: {0}", std::strerror(errno));
         return;
     }
-    char *ptr = buffer, filename[PATH_MAX], membername[32];
+    char *ptr = buffer, filename[PATH_MAX] = {0}, membername[32] = {0};
     uint64_t dataorg, textorg, datasize, textsize, core_offset;
     int next = 1;
     lldb::offset_t base_offset = loader_offset;
@@ -310,8 +311,14 @@ void DynamicLoaderAIXDYLD::FillCoreLoader32Data(lldb_private::DataExtractor &dat
         core_offset = data.GetU32(&offset);
         textorg = data.GetU32(&offset);
         textsize = data.GetU32(&offset);
+        if (textsize == 0 || textorg == 0) {
+            LLDB_LOGF(log, "Warning: text information might be incomplete");
+        }
         dataorg = data.GetU32(&offset);
         datasize = data.GetU32(&offset);
+        if (datasize == 0 || dataorg == 0) {
+            LLDB_LOGF(log, "Warning: data information might be incomplete");
+        }
 
         size_t s1_index = 0, s2_index = 0;
         uint8_t byte;
@@ -340,6 +347,7 @@ void DynamicLoaderAIXDYLD::FillCoreLoader32Data(lldb_private::DataExtractor &dat
             // FIXME: .tdata, .bss
         }
     }
+    free(buffer);
 }
 
 void DynamicLoaderAIXDYLD::DidAttach() {
