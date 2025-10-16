@@ -474,21 +474,22 @@ static ValueObjectSP ExtractLibCxxStringData(ValueObject &valobj) {
   return valobj_r_sp;
 }
 
-int parseChar(const std::string& input) {
-    // Check if input starts and ends with single quotes
-    if (input.size() >= 3 && input.front() == '\'' && input.back() == '\'') {
-        std::string inner = input.substr(1, input.size() - 2); // e.g., "\0" or "\x01"
+int parseChar(const std::string &input) {
+  // Check if input starts and ends with single quotes
+  if (input.size() >= 3 && input.front() == '\'' && input.back() == '\'') {
+    std::string inner =
+        input.substr(1, input.size() - 2); // e.g., "\0" or "\x01"
 
-        if (inner == "\\0" ) {
-            return 0;
-        }
-        if (inner.rfind("\\x", 0) == 0 && inner.size() == 4) {
-            std::string hexPart = inner.substr(2);
-            int value = std::stoi(hexPart, nullptr, 16);
-            return value;
-        }
+    if (inner == "\\0") {
+      return 0;
     }
-    return -1; // Invalid format
+    if (inner.rfind("\\x", 0) == 0 && inner.size() == 4) {
+      std::string hexPart = inner.substr(2);
+      int value = std::stoi(hexPart, nullptr, 16);
+      return value;
+    }
+  }
+  return -1; // Invalid format
 }
 
 /// Determine the size in bytes of \p valobj (a libc++ std::string object) and
@@ -514,8 +515,8 @@ ExtractLibcxxStringInfo(ValueObject &valobj) {
   StringLayout layout =
       *index_or_err == 0 ? StringLayout::DSC : StringLayout::CSD;
 
-  bool short_mode = false; // this means the string is in short-mode and the
-                           // data is stored inline
+  bool short_mode = false;    // this means the string is in short-mode and the
+                              // data is stored inline
   bool using_bitmasks = true; // Whether the class uses bitmasks for the mode
                               // flag (pre-D123580).
   uint64_t size;
@@ -537,7 +538,8 @@ ExtractLibcxxStringInfo(ValueObject &valobj) {
 #if _AIX
     short_mode = !parseChar(is_long->GetValueAsCString());
     size = parseChar(size_sp->GetValueAsCString());
-    if (size > 23) size = 0; // as it is garbage if not valid
+    if (size > 23)
+      size = 0; // as it is garbage if not valid
 #endif
 
   } else {
@@ -664,23 +666,23 @@ bool lldb_private::formatters::LibcxxStringSummaryProviderUTF32(
 }
 
 static std::tuple<bool, ValueObjectSP, size_t>
-LibcxxExtractStringViewData(ValueObject& valobj) {
+LibcxxExtractStringViewData(ValueObject &valobj) {
   auto dataobj = GetChildMemberWithName(
       valobj, {ConstString("__data_"), ConstString("__data")});
   auto sizeobj = GetChildMemberWithName(
       valobj, {ConstString("__size_"), ConstString("__size")});
   if (!dataobj || !sizeobj)
-    return std::make_tuple<bool,ValueObjectSP,size_t>(false, {}, {});
+    return std::make_tuple<bool, ValueObjectSP, size_t>(false, {}, {});
 
   if (!dataobj->GetError().Success() || !sizeobj->GetError().Success())
-    return std::make_tuple<bool,ValueObjectSP,size_t>(false, {}, {});
+    return std::make_tuple<bool, ValueObjectSP, size_t>(false, {}, {});
 
   bool success{false};
   uint64_t size = sizeobj->GetValueAsUnsigned(0, &success);
   if (!success)
-    return std::make_tuple<bool,ValueObjectSP,size_t>(false, {}, {});
+    return std::make_tuple<bool, ValueObjectSP, size_t>(false, {}, {});
 
-  return std::make_tuple(true,dataobj,size);
+  return std::make_tuple(true, dataobj, size);
 }
 
 template <StringPrinter::StringElementType element_type>
