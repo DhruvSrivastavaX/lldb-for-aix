@@ -31,6 +31,7 @@
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-forward.h"
 #include <optional>
+#include <string>
 #include <tuple>
 
 using namespace lldb;
@@ -82,6 +83,7 @@ lldb_private::formatters::GetFirstValueOfLibCXXCompressedPair(
     // pre-c88580c member name
     value = pair.GetChildMemberWithName("__first_");
   }
+
   return value;
 }
 
@@ -472,6 +474,23 @@ static ValueObjectSP ExtractLibCxxStringData(ValueObject &valobj) {
   return valobj_r_sp;
 }
 
+int parseChar(const std::string& input) {
+    // Check if input starts and ends with single quotes
+    if (input.size() >= 3 && input.front() == '\'' && input.back() == '\'') {
+        std::string inner = input.substr(1, input.size() - 2); // e.g., "\0" or "\x01"
+
+        if (inner == "\\0" ) {
+            return 0;
+        }
+        if (inner.rfind("\\x", 0) == 0 && inner.size() == 4) {
+            std::string hexPart = inner.substr(2);
+            int value = std::stoi(hexPart, nullptr, 16);
+            return value;
+        }
+    }
+    return -1; // Invalid format
+}
+
 /// Determine the size in bytes of \p valobj (a libc++ std::string object) and
 /// extract its data payload. Return the size + payload pair.
 // TODO: Support big-endian architectures.
@@ -515,6 +534,12 @@ ExtractLibcxxStringInfo(ValueObject &valobj) {
     using_bitmasks = false;
     short_mode = !is_long->GetValueAsUnsigned(/*fail_value=*/0);
     size = size_sp->GetValueAsUnsigned(/*fail_value=*/0);
+#if _AIX
+    short_mode = !parseChar(is_long->GetValueAsCString());
+    size = parseChar(size_sp->GetValueAsCString());
+    if (size > 23) size = 0; // as it is garbage if not valid
+#endif
+
   } else {
     // The string mode is encoded in the size field.
     size_mode_value = size_sp->GetValueAsUnsigned(0);
