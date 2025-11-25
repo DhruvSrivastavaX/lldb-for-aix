@@ -952,7 +952,7 @@ Status NativeProcessAIX::Kill() {
     // We can try to kill a process in these states.
     break;
   }
-
+  // PT_KILL will cause SIGCHLD to be triggered to server and cause a graceful exit.
   error = PtraceWrapper(PT_KILL, GetID(), nullptr, nullptr,  0, nullptr);
 
   return error;
