@@ -953,10 +953,8 @@ Status NativeProcessAIX::Kill() {
     break;
   }
 
-  if (kill(GetID(), SIGKILL) != 0) {
-    error = Status::FromErrno();
-    return error;
-  }
+  // PT_KILL will cause SIGCHLD to be triggered to server and cause a graceful exit.
+  error = PtraceWrapper(PT_KILL, GetID(), nullptr, nullptr,  0, nullptr);
 
   return error;
 }
