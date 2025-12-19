@@ -118,6 +118,7 @@ NativeRegisterContextAIX::CreateHostNativeRegisterContextAIX(
     const ArchSpec &target_arch, NativeThreadAIX &native_thread) {
   switch (target_arch.GetMachine()) {
   case llvm::Triple::ppc64:
+  case llvm::Triple::ppc:
     return std::make_unique<NativeRegisterContextAIX_ppc64>(target_arch,
                                                                  native_thread);
   default:
@@ -130,7 +131,7 @@ NativeRegisterContextAIX_ppc64::NativeRegisterContextAIX_ppc64(
     : NativeRegisterContextRegisterInfo(
           native_thread, new RegisterInfoPOSIX_ppc64le(target_arch)),
       NativeRegisterContextAIX(native_thread) {
-  if (target_arch.GetMachine() != llvm::Triple::ppc64) {
+  if (target_arch.GetMachine() != llvm::Triple::ppc64 && target_arch.GetMachine() != llvm::Triple::ppc) {
     llvm_unreachable("Unhandled target architecture.");
   }
 

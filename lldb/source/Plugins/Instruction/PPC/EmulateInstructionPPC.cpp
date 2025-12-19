@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "EmulateInstructionPPC64.h"
+#include "EmulateInstructionPPC.h"
 
 #include <cstdlib>
 #include <optional>
@@ -26,36 +26,36 @@
 using namespace lldb;
 using namespace lldb_private;
 
-LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionPPC64, InstructionPPC64)
+LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionPPC, InstructionPPC)
 
-EmulateInstructionPPC64::EmulateInstructionPPC64(const ArchSpec &arch)
+EmulateInstructionPPC::EmulateInstructionPPC(const ArchSpec &arch)
     : EmulateInstruction(arch) {}
 
-void EmulateInstructionPPC64::Initialize() {
-  PluginManager::RegisterPlugin(GetPluginNameStatic(),
+void EmulateInstructionPPC::Initialize() {
+  PluginManager::RegisterPlugin("ppc",
                                 GetPluginDescriptionStatic(), CreateInstance);
 }
 
-void EmulateInstructionPPC64::Terminate() {
+void EmulateInstructionPPC::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-llvm::StringRef EmulateInstructionPPC64::GetPluginDescriptionStatic() {
-  return "Emulate instructions for the PPC64 architecture.";
+llvm::StringRef EmulateInstructionPPC::GetPluginDescriptionStatic() {
+  return "Emulate instructions for the PPC architecture.";
 }
 
 EmulateInstruction *
-EmulateInstructionPPC64::CreateInstance(const ArchSpec &arch,
+EmulateInstructionPPC::CreateInstance(const ArchSpec &arch,
                                         InstructionType inst_type) {
-  if (EmulateInstructionPPC64::SupportsEmulatingInstructionsOfTypeStatic(
+  if (EmulateInstructionPPC::SupportsEmulatingInstructionsOfTypeStatic(
           inst_type))
     if (arch.GetTriple().isPPC())
-      return new EmulateInstructionPPC64(arch);
+      return new EmulateInstructionPPC(arch);
 
   return nullptr;
 }
 
-bool EmulateInstructionPPC64::SetTargetTriple(const ArchSpec &arch) {
+bool EmulateInstructionPPC::SetTargetTriple(const ArchSpec &arch) {
   return arch.GetTriple().isPPC();
 }
 
@@ -66,7 +66,7 @@ static std::optional<RegisterInfo> LLDBTableGetRegisterInfo(uint32_t reg_num) {
 }
 
 std::optional<RegisterInfo>
-EmulateInstructionPPC64::GetRegisterInfo(RegisterKind reg_kind,
+EmulateInstructionPPC::GetRegisterInfo(RegisterKind reg_kind,
                                          uint32_t reg_num) {
   if (reg_kind == eRegisterKindGeneric) {
     switch (reg_num) {
@@ -97,7 +97,7 @@ EmulateInstructionPPC64::GetRegisterInfo(RegisterKind reg_kind,
   return {};
 }
 
-bool EmulateInstructionPPC64::ReadInstruction() {
+bool EmulateInstructionPPC::ReadInstruction() {
   bool success = false;
   m_addr = ReadRegisterUnsigned(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_PC,
                                 LLDB_INVALID_ADDRESS, &success);
@@ -113,7 +113,7 @@ bool EmulateInstructionPPC64::ReadInstruction() {
   return success;
 }
 
-bool EmulateInstructionPPC64::CreateFunctionEntryUnwind(
+bool EmulateInstructionPPC::CreateFunctionEntryUnwind(
     UnwindPlan &unwind_plan) {
   unwind_plan.Clear();
   unwind_plan.SetRegisterKind(eRegisterKindLLDB);
@@ -124,7 +124,7 @@ bool EmulateInstructionPPC64::CreateFunctionEntryUnwind(
   row.GetCFAValue().SetIsRegisterPlusOffset(gpr_r1_ppc64le, 0);
 
   unwind_plan.AppendRow(std::move(row));
-  unwind_plan.SetSourceName("EmulateInstructionPPC64");
+  unwind_plan.SetSourceName("EmulateInstructionPPC");
   unwind_plan.SetSourcedFromCompiler(eLazyBoolNo);
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolYes);
   unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
@@ -132,38 +132,38 @@ bool EmulateInstructionPPC64::CreateFunctionEntryUnwind(
   return true;
 }
 
-EmulateInstructionPPC64::Opcode *
-EmulateInstructionPPC64::GetOpcodeForInstruction(uint32_t opcode) {
-  static EmulateInstructionPPC64::Opcode g_opcodes[] = {
-      {0xfc0007ff, 0x7c0002a6, &EmulateInstructionPPC64::EmulateMFSPR,
+EmulateInstructionPPC::Opcode *
+EmulateInstructionPPC::GetOpcodeForInstruction(uint32_t opcode) {
+  static EmulateInstructionPPC::Opcode g_opcodes[] = {
+      {0xfc0007ff, 0x7c0002a6, &EmulateInstructionPPC::EmulateMFSPR,
        "mfspr RT, SPR"},
-      {0xfc000003, 0xf8000000, &EmulateInstructionPPC64::EmulateSTD,
+      {0xfc000003, 0xf8000000, &EmulateInstructionPPC::EmulateSTD,
        "std RS, DS(RA)"},
-      {0xfc000003, 0xf8000001, &EmulateInstructionPPC64::EmulateSTD,
+      {0xfc000003, 0xf8000001, &EmulateInstructionPPC::EmulateSTD,
        "stdu RS, DS(RA)"},
-      {0xfc0007fe, 0x7c000378, &EmulateInstructionPPC64::EmulateOR,
+      {0xfc0007fe, 0x7c000378, &EmulateInstructionPPC::EmulateOR,
        "or RA, RS, RB"},
-      {0xfc000000, 0x38000000, &EmulateInstructionPPC64::EmulateADDI,
+      {0xfc000000, 0x38000000, &EmulateInstructionPPC::EmulateADDI,
        "addi RT, RA, SI"},
-      {0xfc000003, 0xe8000000, &EmulateInstructionPPC64::EmulateLD,
+      {0xfc000003, 0xe8000000, &EmulateInstructionPPC::EmulateLD,
        "ld RT, DS(RA)"},
-//      {0xffff0003, 0x40820000, &EmulateInstructionPPC64::EmulateBNE,
+//      {0xffff0003, 0x40820000, &EmulateInstructionPPC::EmulateBNE,
 //       "bne TARGET"},
-      {0xfc000002, 0x48000000, &EmulateInstructionPPC64::EmulateB,
+      {0xfc000002, 0x48000000, &EmulateInstructionPPC::EmulateB,
        "b TARGET"},
-      {0xfc000003, 0x48000002, &EmulateInstructionPPC64::EmulateBA,
+      {0xfc000003, 0x48000002, &EmulateInstructionPPC::EmulateBA,
        "ba TARGET"},
-      {0xfc000003, 0x48000003, &EmulateInstructionPPC64::EmulateBLA,
+      {0xfc000003, 0x48000003, &EmulateInstructionPPC::EmulateBLA,
        "bla TARGET"},
-      {0xfc000002, 0x40000000, &EmulateInstructionPPC64::EmulateBC,
+      {0xfc000002, 0x40000000, &EmulateInstructionPPC::EmulateBC,
        "bc BO,BI,TARGET"},
-      {0xfc000002, 0x40000002, &EmulateInstructionPPC64::EmulateBCA,
+      {0xfc000002, 0x40000002, &EmulateInstructionPPC::EmulateBCA,
        "bca BO,BI,TARGET"},
-      {0xfc0007fe, 0x4c000020, &EmulateInstructionPPC64::EmulateBCLR,
+      {0xfc0007fe, 0x4c000020, &EmulateInstructionPPC::EmulateBCLR,
        "bclr BO,BI,BH"},
-      {0xfc0007fe, 0x4c000420, &EmulateInstructionPPC64::EmulateBCCTR,
+      {0xfc0007fe, 0x4c000420, &EmulateInstructionPPC::EmulateBCCTR,
        "bcctr BO,BI,BH"},
-      {0xfc0007fe, 0x4c000460, &EmulateInstructionPPC64::EmulateBCTAR,
+      {0xfc0007fe, 0x4c000460, &EmulateInstructionPPC::EmulateBCTAR,
        "bctar BO,BI,BH"}};
   static const size_t k_num_ppc_opcodes = std::size(g_opcodes);
 
@@ -174,7 +174,7 @@ EmulateInstructionPPC64::GetOpcodeForInstruction(uint32_t opcode) {
   return nullptr;
 }
 
-bool EmulateInstructionPPC64::EvaluateInstruction(uint32_t evaluate_options) {
+bool EmulateInstructionPPC::EvaluateInstruction(uint32_t evaluate_options) {
   const uint32_t opcode = m_opcode.GetOpcode32();
   // LLDB_LOG(log, "PPC64::EvaluateInstruction: opcode={0:X+8}", opcode);
   Opcode *opcode_data = GetOpcodeForInstruction(opcode);
@@ -221,7 +221,7 @@ bool EmulateInstructionPPC64::EvaluateInstruction(uint32_t evaluate_options) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateMFSPR(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateMFSPR(uint32_t opcode) {
   uint32_t rt = Bits32(opcode, 25, 21);
   uint32_t spr = Bits32(opcode, 20, 11);
 
@@ -246,7 +246,7 @@ bool EmulateInstructionPPC64::EmulateMFSPR(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateLD(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateLD(uint32_t opcode) {
   uint32_t rt = Bits32(opcode, 25, 21);
   uint32_t ra = Bits32(opcode, 20, 16);
   uint32_t ds = Bits32(opcode, 15, 2);
@@ -276,7 +276,7 @@ bool EmulateInstructionPPC64::EmulateLD(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateSTD(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateSTD(uint32_t opcode) {
   uint32_t rs = Bits32(opcode, 25, 21);
   uint32_t ra = Bits32(opcode, 20, 16);
   uint32_t ds = Bits32(opcode, 15, 2);
@@ -344,7 +344,7 @@ bool EmulateInstructionPPC64::EmulateSTD(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateOR(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateOR(uint32_t opcode) {
   uint32_t rs = Bits32(opcode, 25, 21);
   uint32_t ra = Bits32(opcode, 20, 16);
   uint32_t rb = Bits32(opcode, 15, 11);
@@ -377,7 +377,7 @@ bool EmulateInstructionPPC64::EmulateOR(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateADDI(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateADDI(uint32_t opcode) {
   uint32_t rt = Bits32(opcode, 25, 21);
   uint32_t ra = Bits32(opcode, 20, 16);
   uint32_t si = Bits32(opcode, 15, 0);
@@ -420,7 +420,7 @@ bool EmulateInstructionPPC64::EmulateADDI(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateBC(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateBC(uint32_t opcode) {
   // FIXME:32bit M
   uint32_t M = 0;
   uint32_t target32 = Bits32(opcode, 15, 2) << 2;
@@ -448,7 +448,7 @@ bool EmulateInstructionPPC64::EmulateBC(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateBCA(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateBCA(uint32_t opcode) {
   // FIXME:32bit M
   uint32_t M = 0;
   uint32_t target32 = Bits32(opcode, 15, 2) << 2;
@@ -476,7 +476,7 @@ bool EmulateInstructionPPC64::EmulateBCA(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateBCLR(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateBCLR(uint32_t opcode) {
   // FIXME:32bit M
   uint32_t M = 0;
   uint32_t BO = Bits32(opcode, 25, 21);
@@ -504,7 +504,7 @@ bool EmulateInstructionPPC64::EmulateBCLR(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateBCCTR(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateBCCTR(uint32_t opcode) {
   // FIXME:32bit M
   uint32_t M = 0;
   uint32_t BO = Bits32(opcode, 25, 21);
@@ -532,14 +532,14 @@ bool EmulateInstructionPPC64::EmulateBCCTR(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateBCTAR(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateBCTAR(uint32_t opcode) {
   // Not supported yet.
   LLDB_LOG(GetLog(LLDBLog::Unwind), "EmulateBCTAR: not supported!");
   assert(0);
   return false;
 }
 
-bool EmulateInstructionPPC64::EmulateB(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateB(uint32_t opcode) {
   uint32_t target32 = Bits32(opcode, 25, 2) << 2;
   uint64_t target = (uint64_t)target32 + ((target32 & 0x2000000) ? 0xfffffffffc000000UL : 0);
 
@@ -555,7 +555,7 @@ bool EmulateInstructionPPC64::EmulateB(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateBA(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateBA(uint32_t opcode) {
   Log *log = GetLog(LLDBLog::Unwind);
 
   bool success;
@@ -568,7 +568,7 @@ bool EmulateInstructionPPC64::EmulateBA(uint32_t opcode) {
   return true;
 }
 
-bool EmulateInstructionPPC64::EmulateBLA(uint32_t opcode) {
+bool EmulateInstructionPPC::EmulateBLA(uint32_t opcode) {
   Log *log = GetLog(LLDBLog::Unwind);
 
   bool success;

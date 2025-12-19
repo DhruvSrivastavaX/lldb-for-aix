@@ -17,6 +17,14 @@
 #include <sys/proc.h>
 #include <sys/procfs.h>
 
+#include "llvm/Object/XCOFFObjectFile.h"
+#include "llvm/Object/ObjectFile.h"
+#include "lldb/Host/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Error.h"
+
+using namespace llvm;
+using namespace llvm::object;
 using namespace lldb;
 using namespace lldb_private;
 
@@ -81,6 +89,41 @@ static bool GetStatusInfo(::pid_t pid, ProcessInstanceInfo &processInfo,
   return true;
 }
 
+static bool GetXCOFFProcessType(llvm::StringRef exe_path) {
+    Log *log = GetLog(LLDBLog::Host);
+    LLDB_LOG(log,"{0} {1} ",__FUNCTION__,__LINE__);
+    
+    // Read file into a MemoryBuffer
+    auto file_buffer = MemoryBuffer::getFile(exe_path);
+    if (!file_buffer) {
+        LLDB_LOG(log, "Failed to open file: {0}", exe_path);
+        return false;
+    }
+
+    // Create an LLVM ObjectFile (detects ELF, XCOFF, COFF, etc.)
+    llvm::Expected<std::unique_ptr<llvm::object::ObjectFile>> obj_or_err =
+        llvm::object::ObjectFile::createObjectFile((*file_buffer)->getMemBufferRef());
+
+    if (!obj_or_err) {
+        LLDB_LOG(log, "Failed to create object file: {0}", exe_path);
+        return false;
+    }
+
+    llvm::object::ObjectFile *obj = obj_or_err->get();
+
+    // Check if it's an XCOFF binary
+    const llvm::object::XCOFFObjectFile *xcoff_obj =
+        llvm::dyn_cast<llvm::object::XCOFFObjectFile>(obj);
+    if (!xcoff_obj) {
+        LLDB_LOG(log, "Not an XCOFF object file: {0}", exe_path);
+        return false;
+    }
+
+    LLDB_LOG(log,"{0} {1} is64Bit {2}",__FUNCTION__,__LINE__,xcoff_obj->is64Bit());
+
+    return xcoff_obj->is64Bit();
+}
+
 static bool GetExePathAndIds(::pid_t pid, ProcessInstanceInfo &process_info) {
   struct psinfo psinfoData;
   auto BufferOrError = getProcFile(pid, "psinfo");
@@ -101,7 +144,13 @@ static bool GetExePathAndIds(::pid_t pid, ProcessInstanceInfo &process_info) {
 
   process_info.GetExecutableFile().SetFile(PathRef, FileSpec::Style::native);
   ArchSpec arch_spec = ArchSpec();
-  arch_spec.SetArchitecture(eArchTypeXCOFF, llvm::XCOFF::TCPU_PPC64,
+
+  bool is64Bit = GetXCOFFProcessType(PathRef);
+  if(is64Bit)
+    arch_spec.SetArchitecture(eArchTypeXCOFF, llvm::XCOFF::TCPU_PPC64,
+                            LLDB_INVALID_CPUTYPE, llvm::Triple::AIX);
+  else 
+    arch_spec.SetArchitecture(eArchTypeXCOFF, llvm::XCOFF::TCPU_PPC,
                             LLDB_INVALID_CPUTYPE, llvm::Triple::AIX);
   process_info.SetArchitecture(arch_spec);
   process_info.SetParentProcessID(psinfoData.pr_ppid);

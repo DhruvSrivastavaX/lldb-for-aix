@@ -56,6 +56,8 @@ public:
   static bool MagicBytesMatch(lldb::DataBufferSP &data_sp, lldb::addr_t offset,
                               lldb::addr_t length);
 
+  static uint16_t GetMagicBytes(lldb::DataBufferSP &data_sp, lldb::addr_t offset,
+                              lldb::addr_t length);
   // PluginInterface protocol
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 

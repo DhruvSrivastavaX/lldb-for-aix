@@ -133,6 +133,16 @@ ObjectFile *ObjectFileXCOFF::CreateMemoryInstance(
   return nullptr;
 }
 
+uint16_t ObjectFileXCOFF::GetMagicBytes(DataBufferSP &data_sp,
+                                      lldb::addr_t data_offset,
+                                      lldb::addr_t data_length) {
+  lldb_private::DataExtractor data;
+  data.SetData(data_sp, data_offset, data_length);
+  // Need to set this as XCOFF is only compatible with Big Endian
+  data.SetByteOrder(eByteOrderBig);
+  lldb::offset_t offset = 0;
+  return data.GetU16(&offset);
+}
 size_t ObjectFileXCOFF::GetModuleSpecifications(
     const lldb_private::FileSpec &file, lldb::DataBufferSP &data_sp,
     lldb::offset_t data_offset, lldb::offset_t file_offset,
@@ -140,13 +150,23 @@ size_t ObjectFileXCOFF::GetModuleSpecifications(
   const size_t initial_count = specs.GetSize();
 
   if (ObjectFileXCOFF::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
-    ArchSpec arch_spec =
+    if (GetMagicBytes( data_sp, 0, data_sp->GetByteSize()) == XCOFF::XCOFF64){
+      ArchSpec arch_spec =
         ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
     ModuleSpec spec(file, arch_spec);
     spec.GetArchitecture().SetArchitecture(eArchTypeXCOFF, XCOFF::TCPU_PPC64,
                                            LLDB_INVALID_CPUTYPE,
                                            llvm::Triple::AIX);
     specs.Append(spec);
+    } else {
+    ArchSpec arch_spec =
+        ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC, LLDB_INVALID_CPUTYPE);
+    ModuleSpec spec(file, arch_spec);
+    spec.GetArchitecture().SetArchitecture(eArchTypeXCOFF, XCOFF::TCPU_PPC,
+                                           LLDB_INVALID_CPUTYPE,
+                                           llvm::Triple::AIX);
+    specs.Append(spec);
+    }
   }
   return specs.GetSize() - initial_count;
 }
@@ -447,9 +467,18 @@ void ObjectFileXCOFF::CreateSectionsWithBitness(
 void ObjectFileXCOFF::Dump(Stream *s) {}
 
 ArchSpec ObjectFileXCOFF::GetArchitecture() {
-  ArchSpec arch_spec =
-      ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
-  return arch_spec;
+
+  Log *log = GetLog(LLDBLog::Object);
+  LLDB_LOG(log,"{0} {1}",__FUNCTION__,__LINE__);
+  if (m_binary->is64Bit()) {
+      ArchSpec arch_spec =
+          ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
+      return arch_spec;
+  } else {
+      ArchSpec arch_spec =
+          ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC, LLDB_INVALID_CPUTYPE);
+      return arch_spec;
+  }
 }
 
 UUID ObjectFileXCOFF::GetUUID() { return UUID(); }
