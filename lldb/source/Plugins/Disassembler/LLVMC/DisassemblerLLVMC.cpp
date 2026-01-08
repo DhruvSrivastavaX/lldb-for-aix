@@ -1398,7 +1398,7 @@ void DisassemblerLLVMC::MCDisasmInstance::PrintMCInst(
         lldb::addr_t target_addr = (lldb::addr_t)(pc + (op.getImm() << 2));
         target_address.SetLoadAddress(target_addr, target);
         target_address.CalculateSymbolContext(&sym_ctx);
-        if (sym_ctx.function || sym_ctx.symbol) {
+        if (sym_ctx.function && comments_string.empty()) {
           const char *func_name = sym_ctx.function->GetName().AsCString();
           if (sym_ctx.line_entry.IsValid()) {
             const char *file =
@@ -1407,6 +1407,9 @@ void DisassemblerLLVMC::MCDisasmInstance::PrintMCInst(
             comments_stream << func_name << " at " << file << ":" << line;
           } else
             comments_stream << func_name;
+        } else if (sym_ctx.symbol && comments_string.empty()) {
+          comments_stream << "symbol stub for: "
+                          << sym_ctx.symbol->GetName().AsCString();
         }
       }
     }
