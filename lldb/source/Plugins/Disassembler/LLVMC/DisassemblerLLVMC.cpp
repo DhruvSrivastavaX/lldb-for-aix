@@ -1389,15 +1389,22 @@ void DisassemblerLLVMC::MCDisasmInstance::PrintMCInst(
   SymbolContext sym_ctx;
   Address target_address;
   for (unsigned i = 0; i < mc_inst.getNumOperands(); ++i) {
+
     const auto &op = mc_inst.getOperand(i);
     const llvm::MCInstrDesc &desc = m_instr_info_up->get(mc_inst.getOpcode());
+
     if (desc.isBranch() || desc.isCall()) {
       Target *target =
           m_owner.m_exe_ctx ? m_owner.m_exe_ctx->GetTargetPtr() : nullptr;
-      if (op.isImm()) {
+
+      if (op.isImm() && target) {
+        // The branch immediate omits the lowest two bits (zeros) to make
+        // it word aligned. So we require left shift of 2 bytes to calculate
+        // the actual branch target.
         lldb::addr_t target_addr = (lldb::addr_t)(pc + (op.getImm() << 2));
         target_address.SetLoadAddress(target_addr, target);
         target_address.CalculateSymbolContext(&sym_ctx);
+
         if (sym_ctx.function && comments_string.empty()) {
           const char *func_name = sym_ctx.function->GetName().AsCString();
           if (sym_ctx.line_entry.IsValid()) {
@@ -1407,13 +1414,14 @@ void DisassemblerLLVMC::MCDisasmInstance::PrintMCInst(
             comments_stream << func_name << " at " << file << ":" << line;
           } else
             comments_stream << func_name;
+
         } else if (sym_ctx.symbol && comments_string.empty()) {
           comments_stream << "symbol stub for: "
                           << sym_ctx.symbol->GetName().AsCString();
         }
-      }
-    }
-  }
+      } // if(op.isImm() && target)
+    } // if (desc.isBranch() || desc.isCall())
+  } // loop ends
 #endif
   m_instr_printer_up->printInst(&mc_inst, pc, llvm::StringRef(),
                                 *m_subtarget_info_up, inst_stream);
