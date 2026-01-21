@@ -31,6 +31,10 @@
 #include "lldb/ValueObject/ValueObjectRegister.h"
 #include <optional>
 
+#define DECLARE_REGISTER_INFOS_PPC64_STRUCT
+#include "Plugins/Process/Utility/RegisterInfos_ppc64.h"
+#undef DECLARE_REGISTER_INFOS_PPC64_STRUCT
+
 using namespace lldb;
 using namespace lldb_private;
 
@@ -211,7 +215,9 @@ static const uint32_t k_num_register_infos = std::size(g_register_infos);
 const lldb_private::RegisterInfo *
 ABISysV_ppc::GetRegisterInfoArray(uint32_t &count) {
   count = k_num_register_infos;
-  return g_register_infos;
+  // return g_register_infos;
+  count = std::size(g_register_infos_ppc);
+  return g_register_infos_ppc;
 }
 
 size_t ABISysV_ppc::GetRedZoneSize() const { return 224; }

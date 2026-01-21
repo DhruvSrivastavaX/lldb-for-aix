@@ -74,7 +74,7 @@
 #define HWCAP2_MTE (1 << 18)
 #endif
 
-#define GPR GPR_PPC64
+#define GPR GPR_PPC
 #define FPR FPR_PPC64
 #define VMX VMX_PPC64
 #define VSX VSX_PPC64
@@ -1440,6 +1440,7 @@ NativeProcessAIX::GetSoftwareBreakpointTrapOpcode(size_t size_hint) {
     return NativeProcessProtocol::GetSoftwareBreakpointTrapOpcode(size_hint);
   }
 }
+constexpr size_t kMaxPtraceBlockSize = 1024;
 
 Status NativeProcessAIX::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
                                       size_t &bytes_read) {
@@ -1450,6 +1451,7 @@ Status NativeProcessAIX::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
   Log *log = GetLog(POSIXLog::Memory);
   LLDB_LOG(log, "addr = {0}, buf = {1}, size = {2}", addr, buf, size);
 
+  /*
   for (bytes_read = 0; bytes_read < size; bytes_read += remainder) {
     Status error = NativeProcessAIX::PtraceWrapper(
         PT_READ_BLOCK, GetCurrentThreadID(), (void *)addr, nullptr, sizeof(data), &data);
@@ -1462,9 +1464,48 @@ Status NativeProcessAIX::ReadMemory(lldb::addr_t addr, void *buf, size_t size,
     // Copy the data into our buffer
     memcpy(dst, &data, remainder);
 
-    LLDB_LOG(log, "[{0:x}]:{1:x}", addr, data);
+    LLDB_LOG(log, "[{0:x}]:{1:x} k_ptrace_word_size {2}", addr, data, k_ptrace_word_size);
     addr += k_ptrace_word_size;
     dst += k_ptrace_word_size;
+  }
+  */
+
+  while (bytes_read < size) {
+    size_t to_read = size - bytes_read;
+
+    // Clamp to AIX ptrace max
+    if (to_read > kMaxPtraceBlockSize)
+      to_read = kMaxPtraceBlockSize;
+
+    size_t n_long = (to_read + sizeof(int) - 1) / sizeof(int);
+    std::vector<long> tmp(n_long);
+
+    Status error = NativeProcessAIX::PtraceWrapper(
+        PT_READ_BLOCK,
+        GetCurrentThreadID(),
+        reinterpret_cast<void *>(addr),
+        nullptr,
+        to_read,
+        tmp.data());
+
+    if (error.Fail())
+      return error;
+
+    memcpy(dst, tmp.data(), to_read);
+    // print
+std::string hex_str;
+for (size_t i = 0; i < to_read; ++i) {
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%02x", dst[i]);
+    hex_str += buf;
+    if ((i+1) % 4 == 0) hex_str += " ";
+}
+
+    LLDB_LOG(log,"[{0:x}] read {1} = [{2}]", addr, to_read, hex_str); 
+
+    addr += to_read;
+    dst += to_read;
+    bytes_read += to_read;
   }
   return Status();
 }
@@ -1730,20 +1771,23 @@ void NativeProcessAIX::ThreadWasCreated(NativeThreadAIX &thread) {
 #undef DECLARE_REGISTER_INFOS_PPC64_STRUCT
 
 static void GetRegister(lldb::pid_t pid, long long addr, void *buf) {
+    Log *log = GetLog(POSIXLog::Ptrace);
   uint64_t val = 0;
   uint32_t ret = 0;
   ret = ptrace64(PT_READ_GPR, pid, addr, 0, (int *)&val);
+  LLDB_LOG(log, "ptrace(req {0}, pid {1}, addr {2}, ret {3}, val {4})", PT_READ_GPR, pid, addr, ret, val);
   // For 32bit application, ptrace64() return the value and val parameter
   // of no use 
   if(val == 0)
-      val = ret;
+    *(uint32_t *)buf = ret;
+  else
+    *(uint64_t *)buf = val;
   //*(uint64_t *)buf = llvm::byteswap<uint64_t>(val);
-  *(uint64_t *)buf = val;
 }
 
 static void SetRegister(lldb::pid_t pid, long long addr, void *buf) {
   // uint64_t val = llvm::byteswap<uint64_t>(*(uint64_t *)buf);
-  uint64_t val = (*(uint64_t *)buf);
+  uint32_t val = (*(uint32_t *)buf);
   // For 32bit, ptrace64() expects the value as the 4th arg(data)
   // For 64bit, ptrace64() expects the value as the 5th arg(pointer to the buffer)
   ptrace64(PT_WRITE_GPR, pid, addr, val, (int *)&val);

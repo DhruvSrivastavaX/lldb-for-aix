@@ -130,11 +130,21 @@ NativeRegisterContextAIX_ppc64::NativeRegisterContextAIX_ppc64(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
     : NativeRegisterContextRegisterInfo(
           native_thread, new RegisterInfoPOSIX_ppc64(target_arch)),
-      NativeRegisterContextAIX(native_thread) {
-  if (target_arch.GetMachine() != llvm::Triple::ppc64 && target_arch.GetMachine() != llvm::Triple::ppc) {
-    llvm_unreachable("Unhandled target architecture.");
+      NativeRegisterContextAIX(native_thread), m_is_64bit(false), m_gpr_size() {
+  switch (target_arch.GetMachine()) {
+      case llvm::Triple::ppc:
+          m_is_64bit = false;
+          m_gpr_size = sizeof(GPR_PPC);
+          m_gpr = &m_gpr_storage.gpr32;
+          break;
+      case llvm::Triple::ppc64:
+          m_is_64bit = true;
+          m_gpr_size = sizeof(GPR_PPC64);
+          m_gpr = &m_gpr_storage.gpr64;
+          break;
+      default:
+          llvm_unreachable("Unhandled target architecture.");
   }
-
   ::memset(&m_gpr_ppc64, 0, sizeof(m_gpr_ppc64));
   ::memset(&m_fpr_ppc64, 0, sizeof(m_fpr_ppc64));
   ::memset(&m_vmx_ppc64, 0, sizeof(m_vmx_ppc64));
@@ -165,6 +175,7 @@ Status NativeRegisterContextAIX_ppc64::ReadRegister(
     const RegisterInfo *reg_info, RegisterValue &reg_value) {
   Status error;
 
+Log *log = GetLog(POSIXLog::Watchpoints);
   if (!reg_info) {
     error.FromErrorString("reg_info NULL");
     return error;
@@ -233,9 +244,11 @@ Status NativeRegisterContextAIX_ppc64::ReadRegister(
     if (error.Fail())
       return error;
 
-    uint8_t *src = (uint8_t *) &m_gpr_ppc64 + reg_info->byte_offset;
+    // uint8_t *src = (uint8_t *) &m_gpr_ppc64 + reg_info->byte_offset;
+    const uint8_t *src = reinterpret_cast<const uint8_t *>(GetGPRBuffer()) + reg_info->byte_offset;
     reg_value.SetFromMemoryData(*reg_info, src, reg_info->byte_size,
                                 eByteOrderBig, error);
+    LLDB_LOG(log,"src {0} , byte_offset {1}, byhte_size {2}" , *src, reg_info->byte_offset,reg_info->byte_size);
   } else {
     return Status("failed - register wasn't recognized to be a GPR, FPR, VSX "
                   "or VMX, read strategy unknown");
@@ -261,7 +274,8 @@ Status NativeRegisterContextAIX_ppc64::WriteRegister(
     if (error.Fail())
       return error;
 
-    uint8_t *dst = (uint8_t *)&m_gpr_ppc64 + reg_info->byte_offset;
+     uint8_t *dst = reinterpret_cast< uint8_t *>(GetGPRBuffer()) + reg_info->byte_offset;
+    //uint8_t *dst = (uint8_t *)&m_gpr_ppc64 + reg_info->byte_offset;
     ::memcpy(dst, reg_value.GetBytes(), reg_value.GetByteSize());
     //*(uint64_t *)dst = llvm::byteswap<uint64_t>(*(uint64_t *)dst);
 
@@ -374,7 +388,8 @@ Status NativeRegisterContextAIX_ppc64::ReadAllRegisterValues(
     return error;
 
   uint8_t *dst = data_sp->GetBytes();
-  ::memcpy(dst, &m_gpr_ppc64, GetGPRSize());
+  // ::memcpy(dst, &m_gpr_ppc64, GetGPRSize());
+  ::memcpy(dst, GetGPRBuffer(), GetGPRSize());
   dst += GetGPRSize();
   ::memcpy(dst, &m_fpr_ppc64, GetFPRSize());
   dst += GetFPRSize();
@@ -413,7 +428,8 @@ Status NativeRegisterContextAIX_ppc64::WriteAllRegisterValues(
     return error;
   }
 
-  ::memcpy(&m_gpr_ppc64, src, GetGPRSize());
+  //::memcpy(&m_gpr_ppc64, src, GetGPRSize());
+  ::memcpy(GetGPRBuffer(), src, GetGPRSize());
   error = WriteGPR();
 
   if (error.Fail())

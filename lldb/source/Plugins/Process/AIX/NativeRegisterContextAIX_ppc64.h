@@ -80,13 +80,26 @@ protected:
 
   Status WriteVSX();
 
-  void *GetGPRBuffer() override { return &m_gpr_ppc64; }
+  // void *GetGPRBuffer() override { return &m_gpr_ppc64; }
+
+  void *GetGPRBuffer() override { return m_gpr; }
 
   void *GetFPRBuffer() override { return &m_fpr_ppc64; }
 
   size_t GetFPRSize() override { return sizeof(m_fpr_ppc64); }
 
+  bool Is64Bit() const { return m_is_64bit; }
+
 private:
+  union GPRStorage {
+  GPR_PPC   gpr32;
+  GPR_PPC64 gpr64;
+  };
+
+  GPRStorage m_gpr_storage;
+
+  void *m_gpr = nullptr;
+
   GPR_PPC64 m_gpr_ppc64; // 64-bit general purpose registers.
   FPR_PPC64 m_fpr_ppc64; // floating-point registers including extended register.
   VMX_PPC64 m_vmx_ppc64; // VMX registers.
@@ -99,6 +112,10 @@ private:
   bool IsVMX(unsigned reg) const;
 
   bool IsVSX(unsigned reg) const;
+
+  bool m_is_64bit; // true for PPC64, false for PPC
+
+  size_t m_gpr_size; // GPR size based on PPC and PPC64 
 
   uint32_t CalculateFprOffset(const RegisterInfo *reg_info) const;
 
