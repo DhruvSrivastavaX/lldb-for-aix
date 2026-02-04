@@ -464,7 +464,7 @@ uint32_t NativeRegisterContextAIX_ppc64::CalculateVsxOffset(
 }
 
 Status NativeRegisterContextAIX_ppc64::ReadVMX() {
-  return NativeProcessAIX::PtraceWrapper(PTRACE_GETVRREGS, m_thread.GetID(),
+  return NativeProcessAIX::PtraceWrapper(PTT_READ_VEC, m_thread.GetID(),
                                            nullptr, &m_vmx_ppc64,
                                            sizeof(m_vmx_ppc64));
 }
@@ -478,7 +478,7 @@ Status NativeRegisterContextAIX_ppc64::WriteVMX() {
 }
 
 Status NativeRegisterContextAIX_ppc64::ReadVSX() {
-  return NativeProcessAIX::PtraceWrapper(PTRACE_GETVSRREGS, m_thread.GetID(),
+  return NativeProcessAIX::PtraceWrapper(PTT_READ_VSX, m_thread.GetID(),
                                            nullptr, &m_vsx_ppc64,
                                            sizeof(m_vsx_ppc64));
 }
