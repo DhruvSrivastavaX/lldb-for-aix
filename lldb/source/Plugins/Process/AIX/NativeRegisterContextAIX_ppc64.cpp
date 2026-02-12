@@ -18,7 +18,6 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
-#include "lldb/Host/aix/Ptrace.h"
 
 #include "Plugins/Process/AIX/NativeProcessAIX.h"
 #include "Plugins/Process/Linux/Procfs.h"

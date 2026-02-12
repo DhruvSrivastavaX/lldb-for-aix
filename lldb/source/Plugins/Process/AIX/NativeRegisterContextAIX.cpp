@@ -14,7 +14,6 @@
 
 #include "Plugins/Process/AIX/NativeProcessAIX.h"
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
-#include "lldb/Host/aix/Ptrace.h"
 
 using namespace lldb_private;
 using namespace lldb_private::process_aix;

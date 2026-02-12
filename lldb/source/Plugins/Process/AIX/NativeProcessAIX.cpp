@@ -31,7 +31,6 @@
 #include "lldb/Host/PseudoTerminal.h"
 #include "lldb/Host/ThreadLauncher.h"
 #include "lldb/Host/common/NativeRegisterContext.h"
-#include "lldb/Host/aix/Ptrace.h"
 //#include "lldb/Host/linux/Host.h"
 //#include "lldb/Host/linux/Uio.h"
 #include "lldb/Host/posix/ProcessLauncherPosixFork.h"
@@ -143,6 +142,7 @@ static void MaybeLogLaunchInfo(const ProcessLaunchInfo &info) {
     LLDB_LOG(log, "arg {0}: '{1}'", i, *args);
 }
 
+#define DEBUG_PTRACE_MAXBYTES 20
 static void DisplayBytes(StreamString &s, void *bytes, uint32_t count) {
   uint8_t *ptr = (uint8_t *)bytes;
   const uint32_t loop_count = std::min<uint32_t>(DEBUG_PTRACE_MAXBYTES, count);
@@ -159,44 +159,37 @@ static void PtraceDisplayBytes(int &req, void *data, size_t data_size) {
   StreamString buf;
 
   switch (req) {
-  case PTRACE_POKETEXT: {
+  case PTT_READ_GPRS: {
     DisplayBytes(buf, &data, 8);
-    LLDB_LOGV(log, "PTRACE_POKETEXT {0}", buf.GetData());
+    LLDB_LOGV(log, "PTT_READ_GPRS {0}", buf.GetData());
     break;
   }
-  case PTRACE_POKEDATA: {
+  case PTT_WRITE_GPRS: {
     DisplayBytes(buf, &data, 8);
-    LLDB_LOGV(log, "PTRACE_POKEDATA {0}", buf.GetData());
+    LLDB_LOGV(log, "PTT_WRITE_GPRS {0}", buf.GetData());
     break;
   }
-  case PTRACE_POKEUSER: {
-    DisplayBytes(buf, &data, 8);
-    LLDB_LOGV(log, "PTRACE_POKEUSER {0}", buf.GetData());
+  case PT_READ_BLOCK: {
+    DisplayBytes(buf, &data, data_size);
+    LLDB_LOGV(log, "PT_READ_BLOCK {0}", buf.GetData());
     break;
   }
-  case PTRACE_SETREGS: {
+  case PT_WRITE_BLOCK: {
     DisplayBytes(buf, data, data_size);
-    LLDB_LOGV(log, "PTRACE_SETREGS {0}", buf.GetData());
+    LLDB_LOGV(log, "PT_WRITE_BLOCK {0}", buf.GetData());
     break;
   }
-  case PTRACE_SETFPREGS: {
-    DisplayBytes(buf, data, data_size);
-    LLDB_LOGV(log, "PTRACE_SETFPREGS {0}", buf.GetData());
+  case PTT_READ_FPRS: {
+    DisplayBytes(buf, data, 8);
+    LLDB_LOGV(log, "PTT_READ_FPRS: {0}", buf.GetData());
     break;
   }
-#if 0
-  case PTRACE_SETSIGINFO: {
-    DisplayBytes(buf, data, sizeof(siginfo_t));
-    LLDB_LOGV(log, "PTRACE_SETSIGINFO {0}", buf.GetData());
+  case PTT_WRITE_FPRS: {
+    DisplayBytes(buf, data, 8);
+    LLDB_LOGV(log, " PTT_WRITE_FPRS: {0}", buf.GetData());
     break;
   }
-#endif
-  case PTRACE_SETREGSET: {
-    // Extract iov_base from data, which is a pointer to the struct iovec
-    DisplayBytes(buf, *(void **)data, data_size);
-    LLDB_LOGV(log, "PTRACE_SETREGSET {0}", buf.GetData());
-    break;
-  }
+
   default: {}
   }
 }
@@ -1724,14 +1717,32 @@ void NativeProcessAIX::ThreadWasCreated(NativeThreadAIX &thread) {
 #include "Plugins/Process/Utility/RegisterInfos_ppc64.h"
 #undef DECLARE_REGISTER_INFOS_PPC64_STRUCT
 
-static void GetSetSPRs(int req, lldb::pid_t pid, void *gpr) {
-    GPR_PPC64 *spr = static_cast<GPR_PPC64 *>(gpr);
-    ptrace64(req, pid, CR, 0, (int *)&spr->cr);
-    ptrace64(req, pid, MSR, 0, (int *)&spr->msr);
-    ptrace64(req, pid, XER, 0, (int *)&spr->xer);
-    ptrace64(req, pid, LR, 0, (int *)&spr->lr);
-    ptrace64(req, pid, CTR, 0, (int *)&spr->ctr);
-    ptrace64(req, pid, IAR, 0, (int *)&spr->pc);
+static void GetSPRs(int req, lldb::tid_t tid, void *gpr_t) {
+    GPR_PPC64 *gpr = static_cast<GPR_PPC64 *>(gpr_t);
+    struct ptxsprs sprs;
+
+    ptrace64(req, tid, (long long)&sprs, 0, 0);
+
+    gpr->cr = sprs.pt_cr;
+    gpr->msr = sprs.pt_msr;
+    gpr->xer = sprs.pt_xer;
+    gpr->lr = sprs.pt_lr;
+    gpr->ctr = sprs.pt_ctr;
+    gpr->pc = sprs.pt_iar;
+}
+
+static void SetSPRs(int req, lldb::tid_t tid, void *gpr_t) {
+    GPR_PPC64 *gpr = static_cast<GPR_PPC64 *>(gpr_t);
+    struct ptxsprs sprs;
+
+    sprs.pt_cr = gpr->cr;
+    sprs.pt_msr = gpr->msr;
+    sprs.pt_xer = gpr->xer;
+    sprs.pt_lr = gpr->lr;
+    sprs.pt_ctr = gpr->ctr;
+    sprs.pt_iar = gpr->pc;
+
+    ptrace64(req, tid, (long long)&sprs, 0, 0);
 }
 
 // Wrapper for ptrace to catch errors and log calls. Note that ptrace sets
@@ -1770,12 +1781,12 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
   switch (req) {
     case PTT_READ_GPRS:
       ptrace64(req, tid, (long long)data, 0, 0);
-      GetSetSPRs(PT_READ_GPR, pid, data);
+      GetSPRs(PTT_READ_SPRS, tid, data);
       break;
 
     case PTT_WRITE_GPRS:
       ptrace64(req, tid, (long long)data, 0, 0);
-      GetSetSPRs(PT_WRITE_GPR, pid, data);
+      SetSPRs(PTT_WRITE_SPRS, tid, data);
       break;
 
     case PTT_READ_FPRS:
