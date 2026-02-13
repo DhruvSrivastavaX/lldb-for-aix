@@ -73,6 +73,8 @@
 #define HWCAP2_MTE (1 << 18)
 #endif
 
+#define DEBUG_PTRACE_MAXBYTES 20
+
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::process_aix;
@@ -142,7 +144,6 @@ static void MaybeLogLaunchInfo(const ProcessLaunchInfo &info) {
     LLDB_LOG(log, "arg {0}: '{1}'", i, *args);
 }
 
-#define DEBUG_PTRACE_MAXBYTES 20
 static void DisplayBytes(StreamString &s, void *bytes, uint32_t count) {
   uint8_t *ptr = (uint8_t *)bytes;
   const uint32_t loop_count = std::min<uint32_t>(DEBUG_PTRACE_MAXBYTES, count);
