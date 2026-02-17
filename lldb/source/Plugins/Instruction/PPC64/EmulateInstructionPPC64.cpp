@@ -54,14 +54,14 @@ EmulateInstructionPPC64::CreateInstance(const ArchSpec &arch,
                                         InstructionType inst_type) {
   if (EmulateInstructionPPC64::SupportsEmulatingInstructionsOfTypeStatic(
           inst_type))
-    if (arch.GetTriple().isPPC64())
+    if (arch.GetTriple().isPPC())
       return new EmulateInstructionPPC64(arch);
 
   return nullptr;
 }
 
 bool EmulateInstructionPPC64::SetTargetTriple(const ArchSpec &arch) {
-  return arch.GetTriple().isPPC64();
+  return arch.GetTriple().isPPC();
 }
 
 static std::optional<RegisterInfo> LLDBTableGetRegisterInfo(uint32_t reg_num, bool m_is_le) {
