@@ -264,7 +264,7 @@ Status NativeRegisterContextAIX_ppc64::WriteRegister(
     if (error.Fail())
       return error;
 
-     uint8_t *dst = reinterpret_cast< uint8_t *>(GetGPRBuffer()) + reg_info->byte_offset;
+    uint8_t *dst = reinterpret_cast< uint8_t *>(GetGPRBuffer()) + reg_info->byte_offset;
     ::memcpy(dst, reg_value.GetBytes(), reg_value.GetByteSize());
 
     error = WriteGPR();
