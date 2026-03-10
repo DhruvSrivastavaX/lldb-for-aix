@@ -137,6 +137,10 @@ NativeRegisterContextAIX_ppc64::NativeRegisterContextAIX_ppc64(
   ::memset(&m_vmx_ppc64, 0, sizeof(m_vmx_ppc64));
   ::memset(&m_vsx_ppc64, 0, sizeof(m_vsx_ppc64));
   ::memset(&m_hwp_regs, 0, sizeof(m_hwp_regs));
+
+  m_max_hwp_supported = 0;
+  m_max_hbp_supported = 0;
+  m_refresh_hwdebug_info = true;
 }
 
 uint32_t NativeRegisterContextAIX_ppc64::GetRegisterSetCount() const {
@@ -524,27 +528,27 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
     return LLDB_INVALID_INDEX32;
 
   uint32_t control_value = 0, wp_index = 0;
-  lldb::addr_t real_addr = addr;
-  uint32_t rw_mode = 0;
+  lldb::addr_t real_addr = addr; // the unaligned address which is supposed to be watched
 
   // Check if we are setting watchpoint other than read/write/access Update
   // watchpoint flag to match ppc64 write-read bit configuration.
   switch (watch_flags) {
   case eWatchpointKindWrite:
-    //FIXME
-    //rw_mode = 0/*PPC_BREAKPOINT_TRIGGER_WRITE*/;
     watch_flags = 2;
     break;
   // Watchpoint read not supported
   case eWatchpointKindRead:
   case (eWatchpointKindRead | eWatchpointKindWrite):
   default:
+    LLDB_LOG(log, "AIX only supports write watchpoints");
     return LLDB_INVALID_INDEX32;
   }
 
-  // Check if size has a valid hardware watchpoint length.
-  if (size != 8)
-    return LLDB_INVALID_INDEX32;
+  size = m_min_wp_size;
+  if (m_alignment != 3)  { // 2^3 = 8
+       LLDB_LOG(log, "AIX is supposed to have 8-byte alignment, exit!");
+       return LLDB_INVALID_INDEX32;
+   }
 
   // Check 8-byte alignment for hardware watchpoint target address. Below is a
   // hack to recalculate address and size in order to make sure we can watch
@@ -558,15 +562,10 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
     addr = addr & (~0x07);
   }
 
-  // Setup control value
-  control_value = watch_flags << 3;
-  control_value |= ((1 << size) - 1) << 5;
-  control_value |= (2 << 1) | 1;
-
   // Iterate over stored watchpoints and find a free wp_index
   wp_index = LLDB_INVALID_INDEX32;
   for (uint32_t i = 0; i < m_max_hwp_supported; i++) {
-    if ((m_hwp_regs[i].control & 1) == 0) {
+      if (m_hwp_regs[i].slot_occupied == false) {
       wp_index = i; // Mark last free slot
     } else if (m_hwp_regs[i].address == addr) {
       return LLDB_INVALID_INDEX32; // We do not support duplicate watchpoints.
@@ -579,18 +578,28 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
   // Update watchpoint in local cache
   m_hwp_regs[wp_index].real_addr = real_addr;
   m_hwp_regs[wp_index].address = addr;
-  m_hwp_regs[wp_index].control = control_value;
-  //m_hwp_regs[wp_index].mode = rw_mode;
+  m_hwp_regs[wp_index].size = size;
+  m_hwp_regs[wp_index].mode = watch_flags;
 
   // PTRACE call to set corresponding watchpoint register.
   error = WriteHardwareDebugRegs();
+  m_hwp_regs[wp_index].slot_occupied = true;
+    LLDB_LOG(log, "wp_index: {0}, real_addr: {1:x}, address: {2:x}, size: {3}, slot_occupied: {4}, mode: {5}",
+             wp_index,
+             m_hwp_regs[wp_index].real_addr,
+             m_hwp_regs[wp_index].address,
+             m_hwp_regs[wp_index].size,
+             m_hwp_regs[wp_index].slot_occupied,
+             m_hwp_regs[wp_index].mode);
 
   if (error.Fail()) {
-    m_hwp_regs[wp_index].address = 0;
-    m_hwp_regs[wp_index].control &= llvm::maskTrailingZeros<uint32_t>(1);
-
-    return LLDB_INVALID_INDEX32;
+      m_hwp_regs[wp_index].real_addr = 0;
+      m_hwp_regs[wp_index].address = 0;
+      m_hwp_regs[wp_index].size = 0;
+      m_hwp_regs[wp_index].slot_occupied = false;
+      return LLDB_INVALID_INDEX32;
   }
+
 
   return wp_index;
 }
@@ -611,24 +620,26 @@ bool NativeRegisterContextAIX_ppc64::ClearHardwareWatchpoint(
 
   // Create a backup we can revert to in case of failure.
   lldb::addr_t tempAddr = m_hwp_regs[wp_index].address;
-  uint32_t tempControl = m_hwp_regs[wp_index].control;
-  long *tempSlot = reinterpret_cast<long *>(m_hwp_regs[wp_index].slot);
+  bool tempSlot = m_hwp_regs[wp_index].slot_occupied;
+  int tempMode = m_hwp_regs[wp_index].mode;
+  int tempSize = m_hwp_regs[wp_index].size;
 
   // Update watchpoint in local cache
-  m_hwp_regs[wp_index].control &= llvm::maskTrailingZeros<uint32_t>(1);
   m_hwp_regs[wp_index].address = 0;
-  m_hwp_regs[wp_index].slot = 0;
+  m_hwp_regs[wp_index].slot_occupied = false;
   m_hwp_regs[wp_index].mode = 0;
+  m_hwp_regs[wp_index].size = 0;
 
   // Ptrace call to update hardware debug registers
-  //FIXME
-  error = NativeProcessAIX::PtraceWrapper(PT_CLEAR/*PPC_PTRACE_DELHWDEBUG*/,
-                                            m_thread.GetID(), 0, tempSlot);
+  error = NativeProcessAIX::PtraceWrapper(PT_WATCH,
+                                          m_thread.GetProcess().GetID(),
+                                          nullptr, nullptr, 0);
 
   if (error.Fail()) {
-    m_hwp_regs[wp_index].control = tempControl;
     m_hwp_regs[wp_index].address = tempAddr;
-    m_hwp_regs[wp_index].slot = reinterpret_cast<long>(tempSlot);
+    m_hwp_regs[wp_index].slot_occupied = true;
+    m_hwp_regs[wp_index].mode = tempMode;
+    m_hwp_regs[wp_index].size = tempSize;
 
     return false;
   }
@@ -639,11 +650,10 @@ bool NativeRegisterContextAIX_ppc64::ClearHardwareWatchpoint(
 uint32_t
 NativeRegisterContextAIX_ppc64::GetWatchpointSize(uint32_t wp_index) {
   Log *log = GetLog(POSIXLog::Watchpoints);
-  LLDB_LOG(log, "wp_index: {0}", wp_index);
-
-  unsigned control = (m_hwp_regs[wp_index].control >> 5) & 0xff;
-  if (llvm::isPowerOf2_32(control + 1)) {
-    return llvm::popcount(control);
+  unsigned size = m_hwp_regs[wp_index].size;
+  LLDB_LOG(log, "wp_index: {0}, size: {1}", wp_index, size);
+  if (llvm::isPowerOf2_32(size)) {
+      return llvm::popcount(size);
   }
 
   return 0;
@@ -652,9 +662,11 @@ NativeRegisterContextAIX_ppc64::GetWatchpointSize(uint32_t wp_index) {
 bool NativeRegisterContextAIX_ppc64::WatchpointIsEnabled(
     uint32_t wp_index) {
   Log *log = GetLog(POSIXLog::Watchpoints);
-  LLDB_LOG(log, "wp_index: {0}", wp_index);
+  LLDB_LOG(log, "wp_index: {0}, slot_occupied: {1}",
+           wp_index,
+           m_hwp_regs[wp_index].slot_occupied);
 
-  return !!((m_hwp_regs[wp_index].control & 0x1) == 0x1);
+  return m_hwp_regs[wp_index].slot_occupied;
 }
 
 Status NativeRegisterContextAIX_ppc64::GetWatchpointHitIndex(
@@ -668,10 +680,7 @@ Status NativeRegisterContextAIX_ppc64::GetWatchpointHitIndex(
   for (wp_index = 0; wp_index < m_max_hwp_supported; ++wp_index) {
     watch_size = GetWatchpointSize(wp_index);
     watch_addr = m_hwp_regs[wp_index].address;
-
-    if (WatchpointIsEnabled(wp_index) && trap_addr >= watch_addr &&
-        trap_addr <= watch_addr + watch_size) {
-      m_hwp_regs[wp_index].hit_addr = trap_addr;
+    if (WatchpointIsEnabled(wp_index)) {
       return Status();
     }
   }
@@ -683,7 +692,8 @@ Status NativeRegisterContextAIX_ppc64::GetWatchpointHitIndex(
 lldb::addr_t
 NativeRegisterContextAIX_ppc64::GetWatchpointAddress(uint32_t wp_index) {
   Log *log = GetLog(POSIXLog::Watchpoints);
-  LLDB_LOG(log, "wp_index: {0}", wp_index);
+  LLDB_LOG(log, "wp_index: {0}, real_addr {1}",
+           wp_index, m_hwp_regs[wp_index].real_addr);
 
   if (wp_index >= m_max_hwp_supported)
     return LLDB_INVALID_ADDRESS;
@@ -703,7 +713,7 @@ NativeRegisterContextAIX_ppc64::GetWatchpointHitAddress(uint32_t wp_index) {
     return LLDB_INVALID_ADDRESS;
 
   if (WatchpointIsEnabled(wp_index))
-    return m_hwp_regs[wp_index].hit_addr;
+    return m_hwp_regs[wp_index].address;
 
   return LLDB_INVALID_ADDRESS;
 }
@@ -712,10 +722,39 @@ Status NativeRegisterContextAIX_ppc64::ReadHardwareDebugInfo() {
   if (!m_refresh_hwdebug_info) {
     return Status();
   }
+  Log *log = GetLog(POSIXLog::Watchpoints);
+  lldb::pid_t pid = m_thread.GetProcess().GetID();
+  LLDB_LOG(log, "pid: {0}",pid);
+  int size = sizeof(struct _ptrace_info) +
+      sizeof(struct _pt_watchpoints_hdr) +
+      sizeof(struct _pt_watchpoint);
+  unsigned char query_buffer[size];
 
-  m_max_hwp_supported = 1;
+  _ptrace_info *info = (_ptrace_info *)query_buffer;
+  _pt_watchpoints_hdr *wp_hdr =
+      (_pt_watchpoints_hdr *)(query_buffer + sizeof(struct _ptrace_info));
+  _pt_watchpoint *wp_info =
+      (_pt_watchpoint *)(query_buffer + sizeof(struct _ptrace_info) +
+                         sizeof(*wp_hdr));
+  memset(query_buffer, 0, size);
+
+  Status error = NativeProcessAIX::PtraceWrapper(PT_QUERY, pid, nullptr,
+                                  query_buffer, size);
+  if (error.Fail())
+      return error;
+
+  unsigned int pt_wp_write = wp_hdr->pt_wp_write;
+  unsigned int wp_write = wp_info->wp_write;
+  m_max_hwp_supported = wp_hdr->pt_watchpoints_count;
   m_max_hbp_supported = 0;
-  m_refresh_hwdebug_info = false;
+  if (pt_wp_write == 0 || wp_write == 0 || m_max_hwp_supported == 0) {
+      m_max_hwp_supported = 0;
+      LLDB_LOG(log, "Watchpoint not available");
+      return Status();
+  }
+  m_max_wp_size = wp_info->wp_size;
+  m_min_wp_size = wp_info->pt_wp_u.pt_watchpoint_info.wp_minsize;
+  m_alignment = wp_info->pt_wp_u.pt_watchpoint_info.wp_align;
 
   return Status();
 }
@@ -725,15 +764,17 @@ Status NativeRegisterContextAIX_ppc64::WriteHardwareDebugRegs() {
   long ret;
 
   for (uint32_t i = 0; i < m_max_hwp_supported; i++) {
-    if ((m_hwp_regs[i].control & 1) == 0)
-      continue;
+      if (m_hwp_regs[i].slot_occupied == true)
+          continue;
 
-    error = NativeProcessAIX::PtraceWrapper(PT_WATCH, m_thread.GetID(), (void *)m_hwp_regs[i].address, nullptr, 8, &ret);
+      error = NativeProcessAIX::PtraceWrapper(PT_WATCH,
+                                              m_thread.GetProcess().GetID(),
+                                              reinterpret_cast<void *>(m_hwp_regs[i].address),
+                                              nullptr,
+                                              m_hwp_regs[i].size);
 
-    if (error.Fail())
-      return error;
-
-    m_hwp_regs[i].slot = ret;
+      if (error.Fail())
+          return error;
   }
   return error;
 }
