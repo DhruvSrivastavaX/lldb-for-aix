@@ -210,7 +210,7 @@ bool EmulateInstructionPPC64::EvaluateInstruction(uint32_t evaluate_options) {
   if (!opcode_data)
     return false;
 
-  // LLDB_LOG(log, "PPC64::EvaluateInstruction: name={0}", opcode_data->name);
+  // LLDB_LOG(log, "PPC64::EvaluateInstruction: {0}", opcode_data->name);
   const bool auto_advance_pc =
       evaluate_options & eEmulateInstructionOptionAutoAdvancePC;
 
