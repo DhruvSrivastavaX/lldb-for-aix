@@ -1722,62 +1722,32 @@ void NativeProcessAIX::ThreadWasCreated(NativeThreadAIX &thread) {
 #include "Plugins/Process/Utility/RegisterInfos_ppc64.h"
 #undef DECLARE_REGISTER_INFOS_PPC64_STRUCT
 
-static void GetSPRs(int req, lldb::tid_t tid, void *gpr_t, size_t size) {
-    if( size == sizeof(GPR_PPC64)) {
-      GPR_PPC64 *gpr = static_cast<GPR_PPC64 *>(gpr_t);
-      struct ptxsprs sprs;
+template<typename GPR_T, typename PTSPRS_T>
+static void GetSPRs(int req, lldb::tid_t tid, GPR_T *gpr) {
+    PTSPRS_T sprs;
 
-      ptrace64(req, tid, (long long)&sprs, 0, 0);
+    ptrace64(req, tid, (long long)&sprs, 0, 0);
 
-      gpr->cr = sprs.pt_cr;
-      gpr->msr = sprs.pt_msr;
-      gpr->xer = sprs.pt_xer;
-      gpr->lr = sprs.pt_lr;
-      gpr->ctr = sprs.pt_ctr;
-      gpr->pc = sprs.pt_iar;
-    } 
-    else {
-      GPR_PPC *gpr = static_cast<GPR_PPC *>(gpr_t);
-      struct ptsprs sprs;
-
-      ptrace64(req, tid, (long long)&sprs, 0, 0);
-
-      gpr->cr = sprs.pt_cr;
-      gpr->msr = sprs.pt_msr;
-      gpr->xer = sprs.pt_xer;
-      gpr->lr = sprs.pt_lr;
-      gpr->ctr = sprs.pt_ctr;
-      gpr->pc = sprs.pt_iar;
-    }
+    gpr->cr = sprs.pt_cr;
+    gpr->msr = sprs.pt_msr;
+    gpr->xer = sprs.pt_xer;
+    gpr->lr = sprs.pt_lr;
+    gpr->ctr = sprs.pt_ctr;
+    gpr->pc = sprs.pt_iar;
 }
- 
-static void SetSPRs(int req, lldb::tid_t tid, void *gpr_t, size_t size) {
-    if( size == sizeof(GPR_PPC64)) {
-      GPR_PPC64 *gpr = static_cast<GPR_PPC64 *>(gpr_t);
-      struct ptxsprs sprs;
 
-      sprs.pt_cr = gpr->cr;
-      sprs.pt_msr = gpr->msr;
-      sprs.pt_xer = gpr->xer;
-      sprs.pt_lr = gpr->lr;
-      sprs.pt_ctr = gpr->ctr;
-      sprs.pt_iar = gpr->pc;
+template<typename GPR_T, typename PTSPRS_T>
+static void SetSPRs(int req, lldb::tid_t tid, GPR_T *gpr) {
+    PTSPRS_T sprs;
 
-      ptrace64(req, tid, (long long)&sprs, 0, 0);
-    }
-    else {
-      GPR_PPC *gpr = static_cast<GPR_PPC *>(gpr_t);
-      struct ptsprs sprs;
+    sprs.pt_cr = gpr->cr;
+    sprs.pt_msr = gpr->msr;
+    sprs.pt_xer = gpr->xer;
+    sprs.pt_lr = gpr->lr;
+    sprs.pt_ctr = gpr->ctr;
+    sprs.pt_iar = gpr->pc;
 
-      sprs.pt_cr = gpr->cr;
-      sprs.pt_msr = gpr->msr;
-      sprs.pt_xer = gpr->xer;
-      sprs.pt_lr = gpr->lr;
-      sprs.pt_ctr = gpr->ctr;
-      sprs.pt_iar = gpr->pc;
-
-      ptrace64(req, tid, (long long)&sprs, 0, 0);
-    }
+    ptrace64(req, tid, (long long)&sprs, 0, 0);
 }
 
 // Wrapper for ptrace to catch errors and log calls. Note that ptrace sets
@@ -1816,12 +1786,18 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
   switch (req) {
     case PTT_READ_GPRS:
       ptrace64(req, tid, (long long)data, 0, 0);
-      GetSPRs(PTT_READ_SPRS, tid, data, data_size);
+      if(data_size == sizeof(GPR_PPC))
+        GetSPRs<GPR_PPC,ptsprs>(PTT_READ_SPRS, tid, static_cast<GPR_PPC *>(data));
+      else if(data_size == sizeof(GPR_PPC64))
+        GetSPRs<GPR_PPC64,ptxsprs>(PTT_READ_SPRS, tid, static_cast<GPR_PPC64 *>(data));
       break;
 
     case PTT_WRITE_GPRS:
       ptrace64(req, tid, (long long)data, 0, 0);
-      SetSPRs(PTT_WRITE_SPRS, tid, data, data_size);
+      if(data_size == sizeof(GPR_PPC))
+        SetSPRs<GPR_PPC,ptsprs>(PTT_WRITE_SPRS, tid, static_cast<GPR_PPC *>(data));
+      else if(data_size == sizeof(GPR_PPC64))
+        SetSPRs<GPR_PPC64,ptxsprs>(PTT_WRITE_SPRS, tid, static_cast<GPR_PPC64 *>(data));
       break;
 
     case PTT_READ_FPRS:
