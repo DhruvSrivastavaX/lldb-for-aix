@@ -527,18 +527,18 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
   if (error.Fail())
     return LLDB_INVALID_INDEX32;
 
-  uint32_t control_value = 0, wp_index = 0;
+  uint32_t wp_index = 0;
   lldb::addr_t real_addr = addr; // the unaligned address which is supposed to be watched
 
   // Check if we are setting watchpoint other than read/write/access Update
   // watchpoint flag to match ppc64 write-read bit configuration.
   switch (watch_flags) {
   case eWatchpointKindWrite:
+  case (eWatchpointKindRead | eWatchpointKindWrite): //in rw mode atleast check w 
     watch_flags = 2;
     break;
   // Watchpoint read not supported
   case eWatchpointKindRead:
-  case (eWatchpointKindRead | eWatchpointKindWrite):
   default:
     LLDB_LOG(log, "AIX only supports write watchpoints");
     return LLDB_INVALID_INDEX32;
@@ -554,7 +554,6 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
   // hack to recalculate address and size in order to make sure we can watch
   // non 8-byte aligned addresses as well.
   if (addr & 0x07) {
-
     addr_t begin = llvm::alignDown(addr, 8);
     addr_t end = llvm::alignTo(addr + size, 8);
 
@@ -563,12 +562,10 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
 
   // Iterate over stored watchpoints and find a free wp_index
   wp_index = LLDB_INVALID_INDEX32;
-  for (uint32_t i = 0; i < m_max_hwp_supported; i++) {
-      if (m_hwp_regs[i].slot_occupied == false) {
-      wp_index = i; // Mark last free slot
-    } else if (m_hwp_regs[i].address == addr) {
+  if (m_hwp_regs[0].slot_occupied == false) {
+      wp_index = 0; // Mark last free slot
+  } else if (m_hwp_regs[0].address == addr) {
       return LLDB_INVALID_INDEX32; // We do not support duplicate watchpoints.
-    }
   }
 
   if (wp_index == LLDB_INVALID_INDEX32)
@@ -619,7 +616,6 @@ bool NativeRegisterContextAIX_ppc64::ClearHardwareWatchpoint(
 
   // Create a backup we can revert to in case of failure.
   lldb::addr_t tempAddr = m_hwp_regs[wp_index].address;
-  bool tempSlot = m_hwp_regs[wp_index].slot_occupied;
   int tempMode = m_hwp_regs[wp_index].mode;
   int tempSize = m_hwp_regs[wp_index].size;
 
@@ -760,20 +756,19 @@ Status NativeRegisterContextAIX_ppc64::ReadHardwareDebugInfo() {
 
 Status NativeRegisterContextAIX_ppc64::WriteHardwareDebugRegs() {
   Status error;
-  long ret;
 
-  for (uint32_t i = 0; i < m_max_hwp_supported; i++) {
-      if (m_hwp_regs[i].slot_occupied == true)
-          continue;
+  if (m_hwp_regs[0].slot_occupied == true)
+      return Status();
 
-      error = NativeProcessAIX::PtraceWrapper(PT_WATCH,
-                                              m_thread.GetProcess().GetID(),
-                                              reinterpret_cast<void *>(m_hwp_regs[i].address),
-                                              nullptr,
-                                              m_hwp_regs[i].size);
+  error = NativeProcessAIX::PtraceWrapper(PT_WATCH,
+                                          m_thread.GetProcess().GetID(),
+                                          reinterpret_cast<void *>(m_hwp_regs[0].address),
+                                          nullptr,
+                                          m_hwp_regs[0].size);
 
-      if (error.Fail())
-          return error;
+  if (error.Fail()) {
+      return Status::FromErrorString("Setting Watchpoint failed due to"
+                                     " internal error");
   }
   return error;
 }

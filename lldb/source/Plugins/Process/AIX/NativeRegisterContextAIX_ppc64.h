@@ -121,7 +121,7 @@ private:
     int mode;               // Defines if watchpoint is read/write/access.
   };
 
-  std::array<DREG, 4> m_hwp_regs;
+  std::array<DREG, 1> m_hwp_regs; // Keeping it this way to keep it extendable
 
   uint32_t m_max_hwp_supported;
   uint32_t m_max_hbp_supported;
