@@ -560,8 +560,20 @@ void NativeProcessAIX::MonitorSIGTRAP(const WaitStatus status,
         struct thrdentry64 entry;
         tid64_t cursor = 0;
         int count = getthrds64(GetID(), &entry, sizeof(entry), &cursor, 1);
-        if (count <= 0)
+        if (count <= 0) {
+            Status error;
             LLDB_LOG(log, "Failed to fetch thread info");
+            if (count == 0)
+                error = Status::FromErrorStringWithFormat(
+                    "getthrds64 returned 0 threads for pid %" PRIu64, GetID());
+            else {
+                error = Status::FromErrno();
+                LLDB_LOG(log, "getthrds64 failed for pid {0}: {1}", 
+                         GetID(), error);
+            }
+            // Since error case does not set ti_watch, we will automatically
+            // fallback to regular breakpoint
+        }
         // The kernel sets T_WP when a process-level hardware watchpoint fires.
         // T_WP_SVC means it fired during a system call.
         if ((entry.ti_watch & T_WP) || (entry.ti_watch & T_WP_SVC)) {

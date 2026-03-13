@@ -629,7 +629,7 @@ bool NativeRegisterContextAIX_ppc64::ClearHardwareWatchpoint(
   m_hwp_regs[wp_index].mode = 0;
   m_hwp_regs[wp_index].size = 0;
 
-  // Ptrace call to update hardware debug registers
+  // Ptrace call to disable hardware watchpoint
   error = NativeProcessAIX::PtraceWrapper(PT_WATCH,
                                           m_thread.GetProcess().GetID(),
                                           nullptr, nullptr, 0);
