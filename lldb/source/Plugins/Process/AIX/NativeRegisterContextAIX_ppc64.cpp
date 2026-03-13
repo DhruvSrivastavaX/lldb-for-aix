@@ -557,7 +557,6 @@ uint32_t NativeRegisterContextAIX_ppc64::SetHardwareWatchpoint(
 
     addr_t begin = llvm::alignDown(addr, 8);
     addr_t end = llvm::alignTo(addr + size, 8);
-    size = llvm::PowerOf2Ceil(end - begin);
 
     addr = addr & (~0x07);
   }
