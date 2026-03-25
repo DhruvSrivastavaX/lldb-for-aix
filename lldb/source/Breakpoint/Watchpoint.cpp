@@ -410,9 +410,11 @@ bool Watchpoint::IsDisabledDuringEphemeralMode() {
 
 void Watchpoint::SetEnabled(bool enabled, bool notify) {
   if (!m_new_value_sp) {
-    ExecutionContext exe_ctx;
-    m_target.GetProcessSP()->CalculateExecutionContext(exe_ctx);
-    CaptureWatchedValue(exe_ctx);
+    if (ProcessSP process_sp = m_target.GetProcessSP()) {  
+        ExecutionContext exe_ctx;
+        process_sp->CalculateExecutionContext(exe_ctx);
+        CaptureWatchedValue(exe_ctx);
+    }
   }
   if (!enabled) {
     if (m_is_ephemeral)
