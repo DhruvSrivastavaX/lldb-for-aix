@@ -87,7 +87,6 @@ ObjectFile *ObjectFileXCOFF::CreateInstance(const lldb::ModuleSP &module_sp,
     extractor_sp = std::make_shared<lldb_private::DataExtractor>(data_sp);
   }
   const uint16_t magic = GetMagicBytes(extractor_sp, 0, length);
-  Log *log = GetLog(LLDBLog::Object);
   extractor_sp->SetAddressByteSize((magic == XCOFF::XCOFF64) ? 8 : 4);
   extractor_sp->SetByteOrder(lldb::eByteOrderBig);
 
