@@ -96,6 +96,8 @@ static std::string ResolveExecutablePath(llvm::StringRef exe_path,
                                          ::pid_t pid) {
   Log *log = GetLog(LLDBLog::Host);
   std::string resolved_path = exe_path.str();
+  char cwd[PATH_MAX];
+  char real_path[PATH_MAX];
 
   // If resolved_path is already absolute, use it directly
   if (!resolved_path.empty() && resolved_path[0] == '/') {
@@ -104,14 +106,12 @@ static std::string ResolveExecutablePath(llvm::StringRef exe_path,
   }
 
   // Try to resolve using the process's cwd
-  char cwd[PATH_MAX];
   std::string cwd_link = "/proc/" + std::to_string(pid) + "/cwd";
   ssize_t len = readlink(cwd_link.c_str(), cwd, sizeof(cwd) - 1);
 
   if (len > 0) {
     cwd[len] = '\0';
-    std::string full_path = std::string(cwd) + "/" + exe_path.str();
-    char real_path[PATH_MAX];
+    std::string full_path = std::string(cwd) + exe_path.str();
 
     if (realpath(full_path.c_str(), real_path) != nullptr) {
       resolved_path = real_path;
@@ -121,7 +121,6 @@ static std::string ResolveExecutablePath(llvm::StringRef exe_path,
   }
 
   // If still not resolved, try realpath on the relative path
-  char real_path[PATH_MAX];
   if (realpath(exe_path.str().c_str(), real_path) != nullptr) {
     resolved_path = real_path;
     LLDB_LOG(log, "Resolved executable path via realpath: {0}", resolved_path);
