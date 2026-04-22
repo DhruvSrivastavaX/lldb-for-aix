@@ -16,9 +16,7 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/ProcessInfo.h"
 
-#include "Plugins/Process/Utility/RegisterContextPOSIX_powerpc.h"
-#include "Plugins/Process/Utility/RegisterContextPOSIX_ppc64le.h"
-#include "Plugins/Process/Utility/RegisterInfoPOSIX_ppc64le.h"
+#include "Plugins/Process/Utility/RegisterContextPOSIX_ppc64.h"
 #include "Plugins/Process/Utility/RegisterInfoPOSIX_ppc64.h"
 #include "Plugins/Process/elf-core/RegisterContextPOSIXCore_powerpc.h"
 #include "RegisterContextCoreAIX_ppc64.h"
@@ -121,8 +119,10 @@ bool ThreadAIXCore::CalculateStopInfo() {
 
 void AIXSigInfo::Parse(const AIXCORE::AIXCore64Header data, const ArchSpec &arch,
                               const lldb_private::UnixSignals &unix_signals) {
+    Log *log = GetLog(LLDBLog::Process);
     si_signo = data.SignalNum;
     sigfault.si_addr = data.Fault.context.pc;
+    LLDB_LOG(log, "Parse pc {0}", data.Fault.context.pc);
 }
 
 void AIXSigInfo::Parse(const AIXCORE::AIXCore32Header data, const ArchSpec &arch,

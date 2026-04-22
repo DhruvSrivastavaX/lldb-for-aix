@@ -247,6 +247,9 @@ void ProcessAIXCore::ParseAIXCoreFile() {
     }
 }
 
+#define DECLARE_REGISTER_INFOS_PPC64_STRUCT
+#include "Plugins/Process/Utility/RegisterInfos_ppc64.h"
+
 void ProcessAIXCore::ParseAIXCore32File() {
     
     Log *log = GetLog(LLDBLog::Process);
@@ -289,7 +292,9 @@ void ProcessAIXCore::ParseAIXCore32File() {
             memcpy(static_cast<void *>(const_cast<uint8_t *>(regs_buf_sp->GetBytes())),
                    &m_aixcore32_header.threads[i-1].context, regs_size);          
         }
-        lldb_private::DataExtractor regs_data(regs_buf_sp, lldb::eByteOrderBig, 8);
+        // For 32-bit, we need to reorder registers to match GPR_PPC layout
+
+        lldb_private::DataExtractor regs_data(regs_buf_sp, lldb::eByteOrderBig, 4);
         thread_data.gpregset = DataExtractor(regs_data, 0, regs_size);          
                                                                                 
         thread_data.prstatus_sig = 0;                                           
