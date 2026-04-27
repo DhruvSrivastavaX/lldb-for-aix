@@ -28,16 +28,16 @@ AIXCore32Header::AIXCore32Header() { memset(this, 0, sizeof(AIXCore32Header)); }
 
 bool AIXCore32Header::ParseRegisterContext(lldb_private::DataExtractor &data,
                 lldb::offset_t *offset) {
-    Log *log = GetLog(LLDBLog::Process);
     *offset += 20; // skip till curid in mstsave32
+   
     Fault.context.excp_type = data.GetU32(offset);
     Fault.context.pc = data.GetU32(offset);
-    LLDB_LOG(log, "pc {0:x}", Fault.context.pc);
     Fault.context.msr = data.GetU32(offset);
     Fault.context.cr = data.GetU32(offset);
     Fault.context.lr = data.GetU32(offset);
     Fault.context.ctr = data.GetU32(offset);
     Fault.context.xer = data.GetU32(offset);
+   
     // need to skip 0-39 U32s after this upto gpr
     /* *offset += 8; // mq, tid
     Fault.context.fpscr = data.GetU32(offset);
@@ -45,15 +45,16 @@ bool AIXCore32Header::ParseRegisterContext(lldb_private::DataExtractor &data,
     Fault.context.fpinfo = data.GetU8(offset);
     Fault.context.fpscr24_31 = data.GetU8(offset);
     */
+   
     // Skipping unneeded data
     for(int i = 0; i < 40; i++)
         data.GetU32(offset);
     for(int i = 0; i < 32; i++) {
         Fault.context.gpr[i] = data.GetU32(offset);
-        LLDB_LOG(log, "gpr {0} {1:x}",i,Fault.context.gpr[i]);
     }
     for(int i = 0; i < 32; i++)
         Fault.context.fpr[i] = data.GetU32(offset);
+  
     return true;
 }
 
@@ -136,12 +137,11 @@ bool AIXCore64Header::ParseRegisterContext(lldb_private::DataExtractor &data,
     // The data is arranged in this order in this coredump file
     // so we have to fetch in this exact order. But need to change
     // the context structure order according to Infos_ppc64
-    Log *log = GetLog(LLDBLog::Process);
     for(int i = 0; i < 32; i++)
         Fault.context.gpr[i] = data.GetU64(offset);
+    
     Fault.context.msr = data.GetU64(offset); 
     Fault.context.pc = data.GetU64(offset); 
-    LLDB_LOG(log, "pc {0}", Fault.context.pc);
     Fault.context.lr = data.GetU64(offset); 
     Fault.context.ctr = data.GetU64(offset); 
     Fault.context.cr = data.GetU32(offset); 
@@ -149,8 +149,10 @@ bool AIXCore64Header::ParseRegisterContext(lldb_private::DataExtractor &data,
     Fault.context.fpscr = data.GetU32(offset); 
     Fault.context.fpscrx = data.GetU32(offset); 
     Fault.context.except[0] = data.GetU64(offset); 
+    
     for(int i = 0; i < 32; i++)
         Fault.context.fpr[i] = data.GetU64(offset);
+    
     Fault.context.fpeu = data.GetU8(offset); 
     Fault.context.fpinfo = data.GetU8(offset); 
     Fault.context.fpscr24_31 = data.GetU8(offset); 

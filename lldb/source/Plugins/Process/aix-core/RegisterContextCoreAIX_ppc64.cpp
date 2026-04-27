@@ -11,8 +11,6 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/RegisterValue.h"
-#include "lldb/Utility/LLDBLog.h"
-#include "lldb/Utility/Log.h"
 
 #include "Plugins/Process/Utility/lldb-ppc64-register-enums.h"
 #include "Plugins/Process/elf-core/RegisterUtilities.h"
@@ -68,7 +66,6 @@ size_t RegisterContextCoreAIX_ppc64::GetVSXSize() const {
 
 bool RegisterContextCoreAIX_ppc64::ReadRegister(
     const RegisterInfo *reg_info, RegisterValue &value) {
-    Log *log = GetLog(LLDBLog::Process);
 
   lldb::offset_t offset = reg_info->byte_offset;
 
@@ -119,26 +116,6 @@ bool RegisterContextCoreAIX_ppc64::ReadRegister(
         return true;
       }
     }
-/*    } else {
-  // For 32-bit cores, we need to read 32-bit values, not 64-bit
-  // Check the address byte size to determine if this is a 32-bit or 64-bit core
-  uint64_t v;
-  if (m_gpr.GetAddressByteSize() == 4 && reg_info->byte_size == 4) {
-    // 32-bit core: read as 32-bit value
-    v = m_gpr.GetU32(&offset);
-  } else {
-    // 64-bit core or smaller register: use GetMaxU64
-    v = m_gpr.GetMaxU64(&offset, reg_info->byte_size);
-  }
-
-  if (offset == reg_info->byte_offset + reg_info->byte_size) {
-    if (reg_info->byte_size < sizeof(v))
-      value = (uint32_t)v;
-    else
-      value = v;
-    return true;
-  }
-}*/
   } else {
     uint64_t v = m_gpr.GetMaxU64(&offset, reg_info->byte_size);
 

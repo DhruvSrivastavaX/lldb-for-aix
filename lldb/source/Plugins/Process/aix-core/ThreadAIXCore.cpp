@@ -119,10 +119,8 @@ bool ThreadAIXCore::CalculateStopInfo() {
 
 void AIXSigInfo::Parse(const AIXCORE::AIXCore64Header data, const ArchSpec &arch,
                               const lldb_private::UnixSignals &unix_signals) {
-    Log *log = GetLog(LLDBLog::Process);
     si_signo = data.SignalNum;
     sigfault.si_addr = data.Fault.context.pc;
-    LLDB_LOG(log, "Parse pc {0}", data.Fault.context.pc);
 }
 
 void AIXSigInfo::Parse(const AIXCORE::AIXCore32Header data, const ArchSpec &arch,

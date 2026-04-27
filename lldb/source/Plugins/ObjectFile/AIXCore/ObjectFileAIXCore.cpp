@@ -117,10 +117,8 @@ ModuleSpecList ObjectFileAIXCore::GetModuleSpecifications(
 
   ModuleSpecList specs;
   if (ObjectFileAIXCore::MagicBytesMatch(extractor_sp, 0, extractor_sp->GetByteSize())) {
-      printf("m_is32 %d\n", m_is32bit);
     const uint32_t cpu_type =
         (m_is32bit) ? XCOFF::TCPU_PPC : XCOFF::TCPU_PPC64;
-    printf("cpu_type %d\n",cpu_type);
     // Need new ArchType???
     ArchSpec arch_spec = ArchSpec(eArchTypeXCOFF, cpu_type, LLDB_INVALID_CPUTYPE);
     ModuleSpec spec(file, arch_spec);
@@ -201,7 +199,9 @@ void ObjectFileAIXCore::Dump(Stream *s) {
 }
 
 ArchSpec ObjectFileAIXCore::GetArchitecture() {
-  ArchSpec arch_spec = ArchSpec(eArchTypeXCOFF, XCOFF::TCPU_PPC64, LLDB_INVALID_CPUTYPE);
+    const uint32_t cpu_type =
+        (m_is32bit) ? XCOFF::TCPU_PPC : XCOFF::TCPU_PPC64;
+  ArchSpec arch_spec = ArchSpec(eArchTypeXCOFF, cpu_type, LLDB_INVALID_CPUTYPE);
   return arch_spec;
 }
 

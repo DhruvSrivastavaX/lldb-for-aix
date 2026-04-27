@@ -75,7 +75,7 @@ struct RegContext64 {
     struct ThreadContext32 {
         struct thrdsinfo64 thread;
         // It should be RegContext32 but needs some changes before it
-        struct RegContext64 context; // This one saves mstsave32 and not context64
+        struct RegContext32 context; // This one saves mstsave32 and not context64
     };
 
     struct UserData {
