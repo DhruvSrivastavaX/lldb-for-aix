@@ -264,29 +264,30 @@ static llvm::Error AddPtraceScopeNote(llvm::Error original_error) {
 static llvm::Expected<std::vector<::pid_t>> DiscoverThreads(::pid_t pid) {
   Log *log = GetLog(POSIXLog::Process);
 
-  const char procdir[] = "/proc/";
-  const char lwpdir[] = "/lwp/";
+  llvm::SmallString<128> proc_lwp_dir;
+  llvm::sys::path::append(proc_lwp_dir, "/proc/", std::to_string(pid), "/lwp/");
   std::vector<::pid_t> tids;
-  std::string process_task_dir = procdir + std::to_string(pid) + lwpdir;
-  DIR *dirproc = opendir(process_task_dir.c_str());
-  if (!dirproc) {
-      return llvm::createStringError(
-          std::error_code(errno, std::generic_category()),
-          "Failed to open %s", process_task_dir.c_str());
+
+  std::error_code ec;
+  bool is_dir_result;
+  if (!llvm::sys::fs::is_directory(proc_lwp_dir, is_dir_result) && 
+      is_dir_result) {
+      for (llvm::sys::fs::directory_iterator it(proc_lwp_dir, ec), end;
+           it != end && !ec; it.increment(ec)) {
+          llvm::StringRef name = llvm::sys::path::filename(it->path());
+
+          if (name == "." || name == "..")
+              continue;
+
+          lldb::tid_t tid = 0;
+          if (!name.getAsInteger(10, tid)) {
+              LLDB_LOG(log, "Discovered tid {0}", tid);
+              tids.push_back(tid);
+              break; // only supported for single threaded processes right now
+          }
+      }
   }
 
-  struct dirent *direntry = nullptr;
-  while ((direntry = readdir(dirproc)) != nullptr) {
-      if (strcmp(direntry->d_name, ".") == 0 || 
-          strcmp(direntry->d_name, "..") == 0) {
-          continue;
-      }
-      lldb::tid_t tid = atoi(direntry->d_name);
-      LLDB_LOG(log, "Discovered tid {0}",tid);
-      tids.push_back(tid);
-      break; // only supported for single threaded processes right now
-  }
-  closedir(dirproc);
   if (tids.empty()) {
     return llvm::createStringError(
         llvm::inconvertibleErrorCode(),
