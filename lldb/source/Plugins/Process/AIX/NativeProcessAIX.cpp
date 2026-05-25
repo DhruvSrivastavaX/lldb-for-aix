@@ -1901,6 +1901,11 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t id, void *addr,
       ptrace64(req, id, 1, (int)(size_t)data, nullptr);
       break;
 
+    case PTT_CONTINUE:
+      /* Needs to be modified for multiple threads */
+      ptrace64(req, id, 1, (int)(size_t)data, nullptr);
+      break;
+
     case PT_ATTACH: {
       // Block SIGCHLD signal during attach to the process, 
       // to prevent interruptions.
