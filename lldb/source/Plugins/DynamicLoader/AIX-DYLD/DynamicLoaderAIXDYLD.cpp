@@ -442,7 +442,6 @@ void DynamicLoaderAIXDYLD::DidLaunch() {
   // were cleared), try to resolve it again
   if (!executable.get()) {
     ResolveExecutableModule(executable);
-    executable = GetTargetExecutable();
     if (!executable.get()) {
       LLDB_LOG(log, "failed to get target executable module");
       return;
