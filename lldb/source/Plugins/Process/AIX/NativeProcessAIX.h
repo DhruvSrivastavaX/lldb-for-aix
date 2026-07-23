@@ -269,6 +269,9 @@ private:
   // Notify the delegate if all threads have stopped.
   void SignalIfAllThreadsStopped();
 
+  // Resume the given thread, optionally passing it the given signal. The type
+  // of resume
+  // operation (continue, single-step) depends on the state parameter.
   Status ResumeThread(NativeThreadAIX &thread, lldb::StateType state,
                       int signo);
 
