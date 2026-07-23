@@ -1734,6 +1734,10 @@ Status NativeProcessAIX::ResumeThread(NativeThreadAIX &thread,
   Log *const log = GetLog(POSIXLog::Thread);
   LLDB_LOG(log, "tid: {0}", thread.GetID());
 
+  // We are only using the NativeThreadAIX level resume/step 
+  // to set states for lldb book keeping. 
+  // The actual call is issued by IssuePTTContinue which is supposed to be
+  // a once per stop call.
   if (m_pending_notification_tid != LLDB_INVALID_THREAD_ID) {
     LLDB_LOG(log,
              "about to resume tid {0} per explicit request but we have a "
