@@ -249,11 +249,19 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
 
     // Parse the ld_info chain directly from the DataExtractor
     lldb::offset_t base_offset = loader_offset;
+    const lldb::offset_t loader_end = loader_offset + loader_size;
     uint64_t textorg, textsize, dataorg, datasize;
     uint32_t next;
     uint64_t flags, core_offset;
 
     while (true) {
+        // ensure the entry start is within the loader section
+        if (base_offset + 48 > loader_end) {
+            LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s(): loader section "
+                    "exhausted or chain corrupt at offset %" PRIu64,
+                    __FUNCTION__, (uint64_t)base_offset);
+            break;
+        }
         lldb::offset_t offset = base_offset;
 
         // struct ld_info (64-bit):
@@ -263,7 +271,7 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
         //   void * ldinfo_textorg     (8 bytes)
         //   ulong  ldinfo_textsize    (8 bytes)
         //   void * ldinfo_dataorg     (8 bytes)
-        //   ulong  ldinfo_datasize    (8 bytes)
+        //   ulong  ldinfo_datasize    (8 bytes)  = Total 48 bytes
         //   char   ldinfo_filename[2] (path member)
         next         = data.GetU32(&offset);
         flags        = data.GetU32(&offset);
@@ -311,7 +319,16 @@ void DynamicLoaderAIXDYLD::FillCoreLoaderData(lldb_private::DataExtractor &data,
 
         if (next == 0)
             break;
+        // ensure the advanced offset stays within the loader section
+        // before the next iteration reads from it
+        if (base_offset + next >= loader_end) {
+            LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s(): ldinfo_next (%" PRIu32
+                           ") walks outside loader section; stopping.",
+                      __FUNCTION__, next);
+            break;
+        }
         base_offset += next;
+
     }
 }
 
@@ -322,10 +339,18 @@ void DynamicLoaderAIXDYLD::FillCoreLoader32Data(lldb_private::DataExtractor &dat
     LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s()", __FUNCTION__);
 
     lldb::offset_t base_offset = loader_offset;
+    const lldb::offset_t loader_end = loader_offset + loader_size;
     uint64_t dataorg, textorg, datasize, textsize, core_offset;
     uint32_t next;
 
     while (true) {
+        // ensure the entry start is within the loader section
+        if (base_offset + 24 > loader_end) {
+            LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s(): loader section "
+                    "exhausted or chain corrupt at offset %" PRIu64,
+                    __FUNCTION__, (uint64_t)base_offset);
+            break;
+        }
         lldb::offset_t offset = base_offset;
         // struct ld_info (32-bit):
         //   uint  ldinfo_next      (4 bytes)
@@ -333,7 +358,7 @@ void DynamicLoaderAIXDYLD::FillCoreLoader32Data(lldb_private::DataExtractor &dat
         //   void* ldinfo_textorg   (4 bytes)
         //   uint  ldinfo_textsize  (4 bytes)
         //   void* ldinfo_dataorg   (4 bytes)
-        //   uint  ldinfo_datasize  (4 bytes)
+        //   uint  ldinfo_datasize  (4 bytes) = Total 24 bytes
         //   char  ldinfo_filename[2] (path member)
         next        = data.GetU32(&offset);
         core_offset = data.GetU32(&offset);
@@ -381,6 +406,14 @@ void DynamicLoaderAIXDYLD::FillCoreLoader32Data(lldb_private::DataExtractor &dat
 
         if (next == 0)
             break;
+        // ensure the advanced offset stays within the loader section
+        // before the next iteration reads from it
+        if (base_offset + next >= loader_end) {
+            LLDB_LOGF(log, "DynamicLoaderAIXDYLD::%s(): ldinfo_next (%" PRIu32
+                           ") walks outside loader section; stopping.",
+                      __FUNCTION__, next);
+            break;
+        }
         base_offset += next;
     }
 }
