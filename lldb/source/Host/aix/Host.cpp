@@ -111,8 +111,7 @@ static std::string ResolveExecutablePath(llvm::StringRef exe_path,
 
   if (cwd_len > 0) {
     cwd[cwd_len] = '\0';
-    std::string full_path =
-        std::string(cwd) + "/" + exe_path.str();
+    std::string full_path = std::string(cwd) + exe_path.str();
 
     if (realpath(full_path.c_str(), real_path) != nullptr) {
       resolved_path = real_path;
