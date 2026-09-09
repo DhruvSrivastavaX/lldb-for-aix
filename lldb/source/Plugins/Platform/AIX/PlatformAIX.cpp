@@ -263,12 +263,12 @@ static lldb::UnwindPlanSP GetPPC64AIXUnwindPlan32() {
 
 lldb::UnwindPlanSP PlatformAIX::GetTrapHandlerUnwindPlan(const ArchSpec &arch,
                                                          lldb::addr_t pc) {
-  if (!arch.GetTriple().isPPC() && !arch.GetTriple().isPPC64())
-    return {};
+  if (arch.GetTriple().getArch() == llvm::Triple::ppc64)
+      return GetPPC64AIXUnwindPlan64();
+  else if (arch.GetTriple().getArch() == llvm::Triple::ppc)
+      return GetPPC64AIXUnwindPlan32();
+  return {};
 
-  if (arch.GetTriple().getArch() == llvm::Triple::ppc || pc < 0x4FB0)
-    return GetPPC64AIXUnwindPlan32();
-  return GetPPC64AIXUnwindPlan64();
 }
 
 MmapArgList PlatformAIX::GetMmapArgumentList(const ArchSpec &arch, addr_t addr,
