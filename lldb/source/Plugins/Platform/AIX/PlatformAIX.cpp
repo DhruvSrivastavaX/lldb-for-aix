@@ -198,7 +198,7 @@ static lldb::UnwindPlanSP GetPPC64AIXUnwindPlan64() {
 
   auto plan_sp = std::make_shared<UnwindPlan>(eRegisterKindDWARF);
   plan_sp->AppendRow(std::move(row));
-  plan_sp->SetSourceName("AIX ppc64 ucontext64 sig_epilog64");
+  plan_sp->SetSourceName("AIX ppc64 64-bit signal handler unwind plan");
   plan_sp->SetSourcedFromCompiler(eLazyBoolYes);
   plan_sp->SetUnwindPlanValidAtAllInstructions(eLazyBoolYes);
   plan_sp->SetUnwindPlanForSignalTrap(eLazyBoolYes);
@@ -254,7 +254,7 @@ static lldb::UnwindPlanSP GetPPC64AIXUnwindPlan32() {
 
   auto plan_sp = std::make_shared<UnwindPlan>(eRegisterKindDWARF);
   plan_sp->AppendRow(std::move(row));
-  plan_sp->SetSourceName("AIX ppc64 ucontext32 sig_epilog32");
+  plan_sp->SetSourceName("AIX ppc64 32-bit signal handler unwind plan");
   plan_sp->SetSourcedFromCompiler(eLazyBoolYes);
   plan_sp->SetUnwindPlanValidAtAllInstructions(eLazyBoolYes);
   plan_sp->SetUnwindPlanForSignalTrap(eLazyBoolYes);
