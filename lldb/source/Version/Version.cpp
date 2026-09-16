@@ -13,7 +13,6 @@
 
 const char *aix_version_string = " AIX pre-release VRMF: 22.1.7.8 \n";
 
-
 static const char *GetLLDBVersion() {
 #ifdef LLDB_FULL_VERSION_STRING
   return LLDB_FULL_VERSION_STRING;
