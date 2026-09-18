@@ -99,7 +99,8 @@ PlatformAIX::PlatformAIX(bool is_host) : PlatformPOSIX(is_host) {
     m_supported_architectures.push_back(hostArch);
   } else {
     m_supported_architectures =
-        CreateArchList({llvm::Triple::ppc64}, llvm::Triple::AIX);
+        CreateArchList({llvm::Triple::ppc64, llvm::Triple::ppc},
+                       llvm::Triple::AIX);
   }
 }
 
