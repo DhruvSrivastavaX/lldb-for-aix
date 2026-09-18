@@ -726,12 +726,14 @@ void RegisterContextUnwind::InitializeNonZerothFrame() {
   }
 
   if (!ReadFrameAddress(row_register_kind, active_row->GetCFAValue(), m_cfa)) {
-    UNWIND_LOG(log, "failed to get cfa");
-    m_frame_type = eNotAValidFrame;
-    return;
+    if (!TryFallbackUnwindPlan()) {
+      UNWIND_LOG(log, "failed to get cfa");
+      m_frame_type = eNotAValidFrame;
+      return;
+    }
+  } else {
+    ReadFrameAddress(row_register_kind, active_row->GetAFAValue(), m_afa);
   }
-
-  ReadFrameAddress(row_register_kind, active_row->GetAFAValue(), m_afa);
 
   UNWIND_LOG(log, "m_cfa = {0:x} m_afa = {1:x}", m_cfa, m_afa);
 
