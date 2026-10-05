@@ -19,6 +19,7 @@
 #include <dirent.h>
 #include <sys/proc.h>
 #include <sys/procfs.h>
+#include <unistd.h>
 
 #include "lldb/Host/FileSystem.h"
 #include "llvm/Object/ObjectFile.h"
@@ -120,13 +121,18 @@ static std::string ResolveExecutablePath(llvm::StringRef exe_path,
     }
   }
 
-  // If still not resolved, try realpath on the relative path
-  if (realpath(exe_path.str().c_str(), real_path) != nullptr) {
-    resolved_path = real_path;
-    LLDB_LOG(log, "Resolved executable path via realpath: {0}", resolved_path);
-    return resolved_path;
+  // Not resolvable from the process's cwd, e.g. argv[0] was found via PATH
+  // ("sleep") or the process has changed its cwd since exec. Do not resolve
+  // relative to the debugger's cwd: that may pick an unrelated file of the
+  // same name. /proc/<pid>/object/a.out always refers to the executable the
+  // process is running (the same file dbx uses).
+  std::string object_path = "/proc/" + std::to_string(pid) + "/object/a.out";
+  if (access(object_path.c_str(), R_OK) == 0) {
+    LLDB_LOG(log, "Using executable via {0} for {1}", object_path, exe_path);
+    return object_path;
   }
 
+  LLDB_LOG(log, "Could not resolve executable path: {0}", exe_path);
   return resolved_path;
 }
 
