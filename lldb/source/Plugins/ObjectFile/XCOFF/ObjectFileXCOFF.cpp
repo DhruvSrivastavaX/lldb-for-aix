@@ -345,11 +345,20 @@ void ObjectFileXCOFF::ParseSymtab(Symtab &lldb_symtab) {
         if (csect_aux.getAuxType64() != XCOFF::AUX_CSECT)
           continue;
 
-      // XTY_LD symbols are label definitions that live inside another csect
-      // Unnamed XTY_SD XMC_PR csects are raw code bodies whose named entry
-      // point is a C_EXT XTY_LD symbol 
-      if ((csect_aux.getSymbolType() == XCOFF::XTY_LD) || 
-          (csect_aux.getSymbolType() == XCOFF::XTY_SD && symbolName.empty())) {
+      // XTY_LD symbols are label definitions that live inside another csect.
+      // For C_HIDEXT these are the entry points of *static* functions. They
+      // used to be dropped wholesale, which left lldb no choice but to fall
+      // back to the nearest external symbol when symbolizing an address --
+      // and that symbol can belong to a completely different translation
+      // unit. Observed on a real AIX core: a frame inside a static function
+      // was reported as "__threads_init + 7776", a libc symbol, instead of
+      // "bdrv_simulate + 1536". dbx names it correctly, so the information
+      // is there; only lldb discarded it.
+      //
+      // Keep the named ones. An unnamed label carries no information and is
+      // still skipped, as is an unnamed XTY_SD XMC_PR csect -- those are raw
+      // code bodies whose named entry point is a separate XTY_LD symbol.
+      if (name_no_dot.empty()) {
         continue;
       }
     }
