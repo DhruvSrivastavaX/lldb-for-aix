@@ -648,6 +648,26 @@ void NativeProcessAIX::MonitorTrace(NativeThreadAIX &thread) {
   StopRunningThreads(thread.GetID());
 }
 
+// Helper for symbol resolution logging
+void NativeProcessAIX::LogSymbolLookupResults(
+    llvm::ArrayRef<llvm::StringLiteral> symbols) {
+  Log *posix_log = GetLog(POSIXLog::Process);
+
+  for (llvm::StringRef symbol : symbols) {
+    lldb::addr_t sym_addr = m_delegate.SymbolLookup(symbol);
+    if (sym_addr != LLDB_INVALID_ADDRESS)
+      LLDB_LOG(posix_log,
+               "NativeProcessAIX::LogSymbolLookupResults symbol lookup '{0}' "
+               "-> {1:x}",
+               symbol, sym_addr);
+    else
+      LLDB_LOG(posix_log,
+               "NativeProcessAIX::LogSymbolLookupResults symbol lookup '{0}' "
+               "-> <not found>",
+               symbol);
+  }
+}
+
 void NativeProcessAIX::MonitorBreakpoint(NativeThreadAIX &thread) {
   Log *log = GetLog(LLDBLog::Process | LLDBLog::Breakpoints);
   LLDB_LOG(log, "received breakpoint event, pid = {0}", thread.GetID());
