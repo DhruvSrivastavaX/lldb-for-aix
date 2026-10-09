@@ -214,6 +214,8 @@ private:
 
   void MonitorTrace(NativeThreadAIX &thread);
 
+  void LogSymbolLookupResults(llvm::ArrayRef<llvm::StringLiteral> symbols);
+
   void MonitorBreakpoint(NativeThreadAIX &thread);
 
   void MonitorWatchpoint(NativeThreadAIX &thread, uint32_t wp_index);
