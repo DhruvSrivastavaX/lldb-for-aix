@@ -949,9 +949,12 @@ ValueObjectSP ABISysV_ppc::GetReturnValueObjectImpl(
 }
 
 UnwindPlanSP ABISysV_ppc::CreateFunctionEntryUnwindPlan() {
-  uint32_t lr_reg_num = dwarf_lr;
-  uint32_t sp_reg_num = dwarf_r1;
-  uint32_t pc_reg_num = dwarf_pc;
+  // Use the ppc64_dwarf numbers: AIX 32-bit cores use g_register_infos_ppc
+  // which embeds ppc64_dwarf DWARF numbers, not the legacy 32-bit values
+  // as those were for ppc arch which is obsolete 
+  uint32_t lr_reg_num = ppc64_dwarf::dwarf_lr_ppc64;
+  uint32_t sp_reg_num = ppc64_dwarf::dwarf_r1_ppc64;
+  uint32_t pc_reg_num = ppc64_dwarf::dwarf_pc_ppc64;
 
   UnwindPlan::Row row;
 
@@ -970,8 +973,11 @@ UnwindPlanSP ABISysV_ppc::CreateFunctionEntryUnwindPlan() {
 
 UnwindPlanSP ABISysV_ppc::CreateDefaultUnwindPlan() {
 
-  uint32_t sp_reg_num = dwarf_r1;
-  uint32_t pc_reg_num = dwarf_lr;
+  uint32_t sp_reg_num  = ppc64_dwarf::dwarf_r1_ppc64;
+  uint32_t pc_reg_num  = ppc64_dwarf::dwarf_pc_ppc64;
+  uint32_t lr_reg_num  = ppc64_dwarf::dwarf_lr_ppc64;
+  uint32_t cr_reg_num  = ppc64_dwarf::dwarf_cr_ppc64;
+  uint32_t r14_reg_num = ppc64_dwarf::dwarf_r14_ppc64;
 
   UnwindPlan::Row row;
 
@@ -979,8 +985,13 @@ UnwindPlanSP ABISysV_ppc::CreateDefaultUnwindPlan() {
   row.SetUnspecifiedRegistersAreUndefined(true);
   row.GetCFAValue().SetIsRegisterDereferenced(sp_reg_num);
 
-  row.SetRegisterLocationToAtCFAPlusOffset(pc_reg_num, ptr_size * 1, true);
-  row.SetRegisterLocationToIsCFAPlusOffset(sp_reg_num, 0, true);
+  row.SetRegisterLocationToAtCFAPlusOffset(pc_reg_num,  ptr_size * 2, true);
+  row.SetRegisterLocationToIsCFAPlusOffset(sp_reg_num,  0,            true);
+  row.SetRegisterLocationToAtCFAPlusOffset(cr_reg_num,  ptr_size,     true);
+
+  // Keep r14 live in the default plan so it can act as the CFA register
+  // when the signal-handler unwind plan takes over
+  row.SetRegisterLocationToSame(r14_reg_num, false);
 
   auto plan_sp = std::make_shared<UnwindPlan>(eRegisterKindDWARF);
   plan_sp->AppendRow(std::move(row));
@@ -988,7 +999,7 @@ UnwindPlanSP ABISysV_ppc::CreateDefaultUnwindPlan() {
   plan_sp->SetSourcedFromCompiler(eLazyBoolNo);
   plan_sp->SetUnwindPlanValidAtAllInstructions(eLazyBoolNo);
   plan_sp->SetUnwindPlanForSignalTrap(eLazyBoolNo);
-  plan_sp->SetReturnAddressRegister(dwarf_lr);
+  plan_sp->SetReturnAddressRegister(lr_reg_num);
   return plan_sp;
 }
 

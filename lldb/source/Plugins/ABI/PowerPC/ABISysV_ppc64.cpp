@@ -1115,17 +1115,20 @@ UnwindPlanSP ABISysV_ppc64::CreateDefaultUnwindPlan() {
   uint32_t pc_reg_num;
   uint32_t lr_reg_num;
   uint32_t cr_reg_num;
+  uint32_t r14_reg_num;
 
   if (GetByteOrder() == lldb::eByteOrderLittle) {
-    sp_reg_num = ppc64le_dwarf::dwarf_r1_ppc64le;
-    pc_reg_num = ppc64le_dwarf::dwarf_pc_ppc64le;
-    lr_reg_num = ppc64le_dwarf::dwarf_lr_ppc64le;
-    cr_reg_num = ppc64le_dwarf::dwarf_cr_ppc64le;
+    sp_reg_num  = ppc64le_dwarf::dwarf_r1_ppc64le;
+    pc_reg_num  = ppc64le_dwarf::dwarf_pc_ppc64le;
+    lr_reg_num  = ppc64le_dwarf::dwarf_lr_ppc64le;
+    cr_reg_num  = ppc64le_dwarf::dwarf_cr_ppc64le;
+    r14_reg_num = ppc64le_dwarf::dwarf_r14_ppc64le;
   } else {
-    sp_reg_num = ppc64_dwarf::dwarf_r1_ppc64;
-    pc_reg_num = ppc64_dwarf::dwarf_pc_ppc64;
-    lr_reg_num = ppc64_dwarf::dwarf_lr_ppc64;
-    cr_reg_num = ppc64_dwarf::dwarf_cr_ppc64;
+    sp_reg_num  = ppc64_dwarf::dwarf_r1_ppc64;
+    pc_reg_num  = ppc64_dwarf::dwarf_pc_ppc64;
+    lr_reg_num  = ppc64_dwarf::dwarf_lr_ppc64;
+    cr_reg_num  = ppc64_dwarf::dwarf_cr_ppc64;
+    r14_reg_num = ppc64_dwarf::dwarf_r14_ppc64;
   }
 
   UnwindPlan::Row row;
@@ -1136,6 +1139,10 @@ UnwindPlanSP ABISysV_ppc64::CreateDefaultUnwindPlan() {
   row.SetRegisterLocationToAtCFAPlusOffset(pc_reg_num, ptr_size * 2, true);
   row.SetRegisterLocationToIsCFAPlusOffset(sp_reg_num, 0, true);
   row.SetRegisterLocationToAtCFAPlusOffset(cr_reg_num, ptr_size, true);
+
+  // Keep r14 live in the default plan so it can act as the CFA register
+  // when the signal-handler unwind plan takes over
+  row.SetRegisterLocationToSame(r14_reg_num, false);
 
   auto plan_sp = std::make_shared<UnwindPlan>(eRegisterKindDWARF);
   plan_sp->AppendRow(std::move(row));
