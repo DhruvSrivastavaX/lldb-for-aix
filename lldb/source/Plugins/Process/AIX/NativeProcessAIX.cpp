@@ -62,6 +62,14 @@
 #include <sys/wait.h>
 #include <sys/mman.h>
 
+#include "PthdbWrapper.h"
+
+// GPR_PPC / GPR_PPC64 / FPR_PPC64 / VMX_PPC64 / VSX_PPC64 structs used by
+// PtraceWrapper, GetSPRs, and SetSPRs below.
+#define DECLARE_REGISTER_INFOS_PPC64_STRUCT
+#include "Plugins/Process/Utility/RegisterInfos_ppc64.h"
+#undef DECLARE_REGISTER_INFOS_PPC64_STRUCT
+
 #ifdef __aarch64__
 #include <asm/hwcap.h>
 #include <sys/auxv.h>
@@ -543,8 +551,15 @@ bool NativeProcessAIX::TryHandleWaitStatus(lldb::pid_t pid,
     SetExitStatus(status, true);
     return true;
   }
-  m_triggering_tid = FindStoppedThread()->GetID();
-  LLDB_LOG(log, "m_triggering_tid {0} ",m_triggering_tid);
+
+  // Attempt to initialise the libpthdebug session on each stop.
+  // EnsurePthdbSession is idempotent: it is a no-op once the session is
+  // active or once the inferior is confirmed non-pthreaded.
+  process_aix::EnsurePthdbSession(*this, /*update=*/false);
+
+  m_triggering_tid = FindStoppedThread() ? FindStoppedThread()->GetID()
+                                         : LLDB_INVALID_THREAD_ID;
+  LLDB_LOG(log, "m_triggering_tid {0}", m_triggering_tid);
   if (NativeThreadAIX *thread = GetThreadByID(m_triggering_tid)) {
     MonitorCallback(*thread, status);
     return true;
@@ -648,7 +663,6 @@ void NativeProcessAIX::MonitorTrace(NativeThreadAIX &thread) {
   StopRunningThreads(thread.GetID());
 }
 
-// Helper for symbol resolution logging
 void NativeProcessAIX::LogSymbolLookupResults(
     llvm::ArrayRef<llvm::StringLiteral> symbols) {
   Log *posix_log = GetLog(POSIXLog::Process);
@@ -986,6 +1000,12 @@ Status NativeProcessAIX::Detach() {
   if (GetID() == LLDB_INVALID_PROCESS_ID)
     return error;
 
+  // Tear down the libpthdebug session before detaching.
+  if (IsPthdbInitialized()) {
+    pthdb_session_destroy(GetPthdbSession());
+    ClearPthdbSession();
+  }
+
   // Cancel out any SIGSTOPs we may have sent while stopping the process.
   // Otherwise, the process may stop as soon as we detach from it.
   kill(GetID(), SIGCONT);
@@ -1083,6 +1103,13 @@ Status NativeProcessAIX::Kill() {
     // We can try to kill a process in these states.
     break;
   }
+
+  // Tear down the libpthdebug session before killing.
+  if (IsPthdbInitialized()) {
+    pthdb_session_destroy(GetPthdbSession());
+    ClearPthdbSession();
+  }
+
   // PT_KILL will cause SIGCHLD to be triggered to server and cause a graceful exit.
   error = PtraceWrapper(PT_KILL, GetID(), nullptr, nullptr,  0, nullptr);
 
@@ -1861,10 +1888,6 @@ void NativeProcessAIX::ThreadWasCreated(NativeThreadAIX &thread) {
     SignalIfAllThreadsStopped();
 }
 
-#define DECLARE_REGISTER_INFOS_PPC64_STRUCT
-#include "Plugins/Process/Utility/RegisterInfos_ppc64.h"
-#undef DECLARE_REGISTER_INFOS_PPC64_STRUCT
-
 template<typename GPR_T, typename PTSPRS_T>
 static void GetSPRs(int req, lldb::tid_t tid, GPR_T *gpr) {
     PTSPRS_T sprs;
@@ -1937,6 +1960,8 @@ Status NativeProcessAIX::PtraceWrapper(int req, lldb::pid_t id, void *addr,
 
     case PTT_READ_VEC:
     case PTT_READ_VSX:
+    case PTT_WRITE_VEC:
+    case PTT_WRITE_VSX:
       ptrace64(req, id, (long long)data, 0, 0);
       break;
 
