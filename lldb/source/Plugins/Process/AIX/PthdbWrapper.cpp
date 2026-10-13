@@ -171,6 +171,8 @@ static int cb_read_regs(pthdb_user_t user, pthdb_tid_t tid,
                                                  &gpr, sizeof(gpr));
       if (s.Fail())
         return 1;
+
+      // TODO: Create a common function for this to avoid redundant code
       for (int i = 0; i < 32; ++i)
         context->gpr[i] = (&gpr.r0)[i];
       context->iar = gpr.pc;
@@ -249,6 +251,7 @@ static int cb_write_regs(pthdb_user_t user, pthdb_tid_t tid,
   if (flags & PTHDB_FLAG_GPRS) {
     if (is32) {
       GPR_PPC gpr{};
+      // TODO: Create a common function for this to avoid redundant code
       for (int i = 0; i < 32; ++i)
         (&gpr.r0)[i] = static_cast<uint32_t>(context->gpr[i]);
       gpr.pc  = static_cast<uint32_t>(context->iar);
